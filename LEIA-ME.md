@@ -75,6 +75,14 @@ Na página do cliente, **✨ Gerar relatório com IA**: escolha o mês (padrão:
 4. abre a one page do mês mais recente, comparada com o anterior. Tudo continua editável em
    **Editar dados**; faturamento e dados de CRM digitados à mão são mantidos ao gerar de novo.
 
+**Aba "Melhorias nas campanhas"** (na tela do relatório, ao lado da one page; não entra no PDF da
+one page): plano de ação com prioridade (alta, média, baixa) por campanha, por exemplo escalar verba,
+pausar quem gasta sem resultado, renovar criativos com frequência alta, melhorar anúncios quando a
+perda de impressões por classificação é alta. Embaixo, a tabela de campanhas do mês (objetivo,
+investimento, resultados, custo por resultado com variação vs mês anterior, CTR, CPC, frequência ou
+parcela de impressões). Cada ação pode ser marcada como feita. Campanhas de reconhecimento e tráfego
+são avaliadas por CPM/CPC/CTR, não por conversões.
+
 Sem faturamento/fechamentos informados, a one page mostra os KPIs de mídia (investimento, resultados,
 custo por resultado, CPC, cliques, impressões), como no modelo da Ducais.
 

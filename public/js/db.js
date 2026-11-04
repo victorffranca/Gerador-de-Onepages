@@ -242,7 +242,13 @@ function createLocalBackend() {
       };
       const prevSaved = reps.find(r => r.month === prevMonth);
       const prev = prevSaved || await this.saveReport(clientId, build(null, prevMonth, 0.85));
-      const cur = await this.saveReport(clientId, build(reps.find(r => r.month === month), month, 1));
+      const campaigns = [
+        { plat: 'meta', name: '[V4][LEADS] - WPP', objective: 'OUTCOME_LEADS', inv: 1184.46, imps: 213566, clicks: 1181, res: 239, value: 0, freq: 5.25, prev: { inv: 1427.83, res: 220, clicks: 1150, imps: 190000 } },
+        { plat: 'google', name: '[V4][PMAX] - LEADS', objective: 'PERFORMANCE_MAX', inv: 608.93, imps: 49004, clicks: 2854, res: 484, value: 483.78, is: 0.334, isBudget: 0.0155, isRank: 0.3815 },
+        { plat: 'meta', name: '[V4][TRÁFEGO] - GANHO DE SEGUIDORES', objective: 'OUTCOME_TRAFFIC', inv: 119.58, imps: 20672, clicks: 457, res: 0, value: 0, freq: 1.43 },
+        { plat: 'meta', name: '[V4][RECONHECIMENTO] - THRUPLAY', objective: 'OUTCOME_AWARENESS', inv: 114.02, imps: 20602, clicks: 0, res: 0, value: 0, freq: 1.59 },
+      ];
+      const cur = await this.saveReport(clientId, { ...build(reps.find(r => r.month === month), month, 1), campaigns, improvements: [] });
       return { report: cur, prev, ai: false, createdPrev: !prevSaved };
     },
   };

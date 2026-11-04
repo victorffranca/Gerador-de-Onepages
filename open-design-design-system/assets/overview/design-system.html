@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html dir="ltr" lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<meta content="#efe7d2" name="theme-color"/>
+<title>Open Design Design System</title>
+<meta content="Open Design Design System — Overview." name="description"/>
+
+<!-- icons -->
+<link href="assets/f23995f0a7bcfb55_favicon.ico" rel="icon" sizes="any" type="image/x-icon"/>
+<link href="assets/22d66fe36a947d88_favicon-32x32.png" rel="icon" sizes="32x32" type="image/png"/>
+<link href="assets/a0df411c3e3dafe1_favicon-16x16.png" rel="icon" sizes="16x16" type="image/png"/>
+<link href="assets/6e7280eb37982056_apple-touch-icon.png" rel="apple-touch-icon" sizes="180x180"/>
+
+
+<!-- fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link href="https://fonts.gstatic.com" rel="preconnect"/>
+<!-- @font-face declarations for Inter, Inter Tight, Playfair Display, JetBrains Mono -->
+<link rel="stylesheet" href="assets/css/fonts.css"/>
+
+<!-- css -->
+<!-- full design system: tokens, layout, components, animations, responsive rules -->
+<link rel="stylesheet" href="assets/css/styles.css"/>
+<!-- ds: catalog embed. Inside ../../design-system.html the catalog draws this page's site chrome
+     (topbar + nav) over the frame at the same place, so the page keeps the chrome's space but hides
+     its own copy. The frame reports the chrome's headroom state (hidden on scroll down, back on
+     scroll up), its scrollbar width, and readiness once the fonts are in. Links to the original
+     site's other routes (root-relative hrefs) never navigate away from this single page. -->
+<style>
+html.ds-embed .site-chrome { visibility: hidden; }
+</style>
+<script>
+(function () {
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a[href]');
+    if (a && a.getAttribute('href').charAt(0) === '/') e.preventDefault();
+  });
+  if (window.parent === window) return;
+  document.documentElement.classList.add('ds-embed');
+  function post(m) { try { window.parent.postMessage(m, '*'); } catch (e) {} }
+  function metrics() { post({ ds: 'metrics', sbw: window.innerWidth - document.documentElement.clientWidth }); }
+  addEventListener('resize', metrics);
+  document.addEventListener('DOMContentLoaded', function () {
+    var chrome = document.querySelector('.site-chrome'), last = null;
+    function report() {
+      var h = chrome.classList.contains('is-hidden');
+      if (h !== last) { last = h; post({ ds: 'chrome', hidden: h }); }
+    }
+    if (chrome) { new MutationObserver(report).observe(chrome, { attributes: true, attributeFilter: ['class'] }); report(); }
+    metrics();
+  });
+  addEventListener('load', function () {
+    metrics();
+    var fonts = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+    fonts.then(function () { setTimeout(function () { metrics(); post({ ds: 'ready' }); }, 300); });
+  });
+  /* the catalog's logo returns to the top of the page */
+  addEventListener('message', function (e) {
+    if (e.source !== window.parent || !e.data || e.data.ds !== 'goto') return;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+})();
+</script>
+</head>
+<body>
+
+<!-- side rails -->
+<div class="side-rail right" data-od-id="rail-right"><span class="rail-text">Open Design — Lorem 01 · Ipsum Nº 26 · Apache-2.0</span></div>
+<div class="side-rail left" data-od-id="rail-left"><span class="rail-text">Lorem · Ipsum · Dolor · Sit · Amet-elit</span></div>
+
+<div class="shell">
+
+<!-- topbar + nav -->
+<div class="site-chrome" data-chrome-headroom="true">
+<div class="topbar" data-od-id="topbar">
+<div class="container topbar-inner">
+<span><b>OD / 2026</b> · Lorem 01 / Ipsum Nº 26</span>
+<span class="mid"><span>Lorem ipsum <b class="coral">Dolor · Consectetur</b></span><span>Apache-2.0 · Sit amet elit</span></span>
+<span class="right">
+<a class="topbar-link" href="https://github.com/nexu-io/open-design/releases" rel="noreferrer noopener" target="_blank"><span class="pulse"></span>Lorem · <span data-github-version="true">v0.7.0</span></a>
+<details class="locale-switch" data-locale-switch="true">
+<summary aria-label="Trocar idioma" class="locale-trigger"><span aria-hidden="true" class="locale-trigger-prefix">Idioma</span><span aria-hidden="true" class="locale-trigger-sep">·</span><span class="locale-trigger-code">PT-BR</span><svg aria-hidden="true" class="locale-trigger-caret" focusable="false" viewbox="0 0 8 5"><path d="M0.5 0.75 L4 4 L7.5 0.75" fill="none" stroke="currentColor" stroke-linecap="square" stroke-width="1"></path></svg></summary>
+<div class="locale-menu" role="menu">
+<a class="locale-menu-item" data-locale-bound="true" data-locale-code="en" data-locale-link="true" href="/" lang="en" role="menuitem"><span class="locale-menu-code">EN</span><span class="locale-menu-label">English</span></a>
+<a class="locale-menu-item" data-locale-bound="true" data-locale-code="zh" data-locale-link="true" href="/zh/" lang="zh-CN" role="menuitem"><span class="locale-menu-code">ZH</span><span class="locale-menu-label">简体中文</span></a>
+<a class="locale-menu-item" data-locale-bound="true" data-locale-code="zh-tw" data-locale-link="true" href="/zh-tw/" lang="zh-TW" role="menuitem"><span class="locale-menu-code">ZH-TW</span><span class="locale-menu-label">繁體中文</span></a>
+<a class="locale-menu-item" data-locale-bound="true" data-locale-code="ja" data-locale-link="true" href="/ja/" lang="ja" role="menuitem"><span class="locale-menu-code">JA</span><span class="locale-menu-label">日本語</span></a>
+<a class="locale-menu-item" data-locale-bound="true" data-locale-code="ko" data-locale-link="true" href="/ko/" lang="ko" role="menuitem"><span class="locale-menu-code">KO</span><span class="locale-menu-label">한국어</span></a>
+<a class="locale-menu-item" data-locale-bound="true" data-locale-code="de" data-locale-link="true" href="/de/" lang="de" role="menuitem"><span class="locale-menu-code">DE</span><span class="locale-menu-label">Deutsch</span></a>
+<a class="locale-menu-item" data-locale-bound="true" data-locale-code="fr" data-locale-link="true" href="/fr/" lang="fr" role="menuitem"><span class="locale-menu-code">FR</span><span class="locale-menu-label">Français</span></a>
+<a class="locale-menu-item" data-locale-bound="true" data-locale-code="ru" data-locale-link="true" href="/ru/" lang="ru" role="menuitem"><span class="locale-menu-code">RU</span><span class="locale-menu-label">Русский</span></a>
+<a class="locale-menu-item" data-locale-bound="true" data-locale-code="es" data-locale-link="true" href="/es/" lang="es" role="menuitem"><span class="locale-menu-code">ES</span><span class="locale-menu-label">Español</span></a>
+<a aria-current="true" class="locale-menu-item is-active" data-locale-bound="true" data-locale-code="pt-br" data-locale-link="true" href="/pt-br/" lang="pt-BR" role="menuitem"><span class="locale-menu-code">PT-BR</span><span class="locale-menu-label">Português (BR)</span></a>
+<a class="locale-menu-item" data-locale-bound="true" data-locale-code="it" data-locale-link="true" href="/it/" lang="it" role="menuitem"><span class="locale-menu-code">IT</span><span class="locale-menu-label">Italiano</span></a>
+<a class="locale-menu-item" data-locale-bound="true" data-locale-code="vi" data-locale-link="true" href="/vi/" lang="vi" role="menuitem"><span class="locale-menu-code">VI</span><span class="locale-menu-label">Tiếng Việt</span></a>
+<a class="locale-menu-item" data-locale-bound="true" data-locale-code="pl" data-locale-link="true" href="/pl/" lang="pl" role="menuitem"><span class="locale-menu-code">PL</span><span class="locale-menu-label">Polski</span></a>
+<a class="locale-menu-item" data-locale-bound="true" data-locale-code="id" data-locale-link="true" href="/id/" lang="id" role="menuitem"><span class="locale-menu-code">ID</span><span class="locale-menu-label">Bahasa Indonesia</span></a>
+<a class="locale-menu-item" data-locale-bound="true" data-locale-code="nl" data-locale-link="true" href="/nl/" lang="nl" role="menuitem"><span class="locale-menu-code">NL</span><span class="locale-menu-label">Nederlands</span></a>
+<a class="locale-menu-item" data-locale-bound="true" data-locale-code="ar" data-locale-link="true" href="/ar/" lang="ar" role="menuitem"><span class="locale-menu-code">AR</span><span class="locale-menu-label">العربية</span></a>
+<a class="locale-menu-item" data-locale-bound="true" data-locale-code="tr" data-locale-link="true" href="/tr/" lang="tr" role="menuitem"><span class="locale-menu-code">TR</span><span class="locale-menu-label">Türkçe</span></a>
+<a class="locale-menu-item" data-locale-bound="true" data-locale-code="uk" data-locale-link="true" href="/uk/" lang="uk" role="menuitem"><span class="locale-menu-code">UK</span><span class="locale-menu-label">Українська</span></a>
+</div>
+</details>
+</span>
+</div>
+</div>
+<header class="nav" data-od-id="nav">
+<div class="container nav-inner">
+<a class="brand" href="#top"><span class="brand-mark"><img alt="" height="44" src="assets/f8ebdd6a7d3cf723_logo.webp" width="44"/></span><span class="brand-name">Open Design</span></a>
+<button aria-controls="primary-nav" aria-expanded="false" aria-label="Alternar menu de navegação" class="nav-toggle" data-nav-toggle="true" type="button"><span aria-hidden="true" class="nav-toggle-icon"></span></button>
+<nav data-nav-primary="true" id="primary-nav">
+<ul class="nav-links">
+<li class="has-dropdown">
+<a aria-expanded="false" aria-haspopup="true" class="is-active" href="/">Produto<span aria-hidden="true" class="dropdown-caret">▾</span></a>
+<ul class="nav-dropdown" role="menu">
+<li role="none"><a class="is-active" href="/" role="menuitem"><span class="dropdown-name">Open Design</span><span class="dropdown-blurb">A superfície de design agêntica: skills, sistemas, templates.</span></a></li>
+<li role="none"><a href="/html-anything/" role="menuitem"><span class="dropdown-name">HTML Anything</span><span class="dropdown-blurb">De Markdown / dados para HTML pronto para publicar, pelo seu agente local.</span></a></li>
+</ul>
+</li>
+<li class="has-dropdown">
+<a aria-expanded="false" aria-haspopup="true" href="/skills/">Biblioteca<span aria-hidden="true" class="dropdown-caret">▾</span></a>
+<ul class="nav-dropdown" role="menu">
+<li role="none"><a href="/skills/" role="menuitem"><span class="dropdown-name">Skills</span></a></li>
+<li role="none"><a href="/systems/" role="menuitem"><span class="dropdown-name">Sistemas</span></a></li>
+<li role="none"><a href="/templates/" role="menuitem"><span class="dropdown-name">Templates</span></a></li>
+<li role="none"><a href="/craft/" role="menuitem"><span class="dropdown-name">Craft</span></a></li>
+</ul>
+</li>
+<li><a href="/tutorials/">Tutoriais</a></li>
+<li><a href="/blog/">Blog</a></li>
+</ul>
+</nav>
+<div class="nav-side">
+<a aria-label="Baixar o Open Design desktop" class="nav-cta ghost" href="https://github.com/nexu-io/open-design/releases" rel="noreferrer noopener" target="_blank" title="Baixe o app desktop">Lorem</a>
+<a aria-label="Dar uma estrela ao Open Design no GitHub" class="nav-cta" href="https://github.com/nexu-io/open-design" rel="noreferrer noopener" target="_blank" title="Clique para nos dar uma estrela no GitHub">Ipsum · <span data-github-stars="true">48.9K</span></a>
+<span aria-hidden="true" class="status-dot"></span>
+</div>
+</div>
+</header>
+</div>
+
+<!-- hero -->
+<section class="hero" data-od-id="hero" id="top">
+<div class="container hero-grid">
+<div class="hero-copy">
+<a aria-label="Entre no Discord do Open Design" class="hero-discord-pill" data-reveal="true" data-revealed="true" href="https://discord.gg/9ptkbbqRu" rel="noreferrer noopener" target="_blank"><span aria-hidden="true">●</span>Lorem ipsum</a>
+<span class="label" data-reveal="true" data-revealed="true">Lorem ipsum dolor sit <span class="ix">· Nº 01</span></span>
+<h1 class="display" data-reveal="true" data-revealed="true">Open Design <em>Design System</em><span class="dot">.</span></h1>
+<p class="lead" data-reveal="true" data-revealed="true">Warm grained parchment, heavy Inter Tight headlines cut with Playfair italics, coral accents, hairline rules, dashed number rings and monospaced plate annotations.</p>
+<div class="hero-actions" data-reveal="true" data-revealed="true">
+<a class="btn btn-primary" href="https://github.com/nexu-io/open-design" rel="noreferrer noopener" target="_blank">Lorem ipsum dolor<span class="arrow"><svg viewbox="0 0 24 24"><path d="M5 19L19 5M19 5H8M19 5v11"></path></svg></span></a>
+<a class="btn btn-ghost" href="https://github.com/nexu-io/open-design/releases" rel="noreferrer noopener" target="_blank">Sit amet elit<span class="arrow"><svg viewbox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9 12h6M12 9v6"></path></svg></span></a>
+</div>
+<div class="hero-stats" data-reveal="true" data-revealed="true">
+<div class="stat"><span class="ring solid">132</span><span class="stat-label"><b>lorem</b>ipsum dolor</span></div>
+<div class="stat"><span class="ring">150</span><span class="stat-label"><b>ipsum</b>sit amet</span></div>
+<div class="stat"><span class="ring coral">12</span><span class="stat-label"><b>dolor</b>elit sed do</span></div>
+</div>
+<div class="hero-foot" data-reveal="true" data-revealed="true">
+<span class="meta">↳  lorem ipsum · 3 dolor sit amet</span>
+<span class="coord">52.5200° N · 13.4050° E</span>
+</div>
+</div>
+<div class="hero-art" data-reveal="scale" data-revealed="true">
+<span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+<span class="annot annot-tl coord">FIG. 01 / OD-26</span>
+<span class="annot annot-tr">Lorem Nº 08</span>
+<span class="annot annot-bl coord">SHA · a1b2c3d</span>
+<span class="annot annot-br">Lorem ipsum <span style="color:var(--coral)">Open Design</span></span>
+<img alt="" decoding="async" fetchpriority="high" height="1600" sizes="(max-width: 768px) 100vw, 60vw" src="assets/cf032dce1702b835_hero.png" width="1280"/>
+<div class="index">
+<span><span class="n">01</span>Lorem</span>
+<span class="on"><span class="n">02</span>Ipsum</span>
+<span><span class="n">03</span>Dolor</span>
+<span><span class="n">04</span>Amet</span>
+</div>
+</div>
+</div>
+</section>
+
+<!-- wire -->
+<section aria-label="Linha global — cidades e contribuidores" class="wire" data-od-id="wire">
+<div class="container wire-inner">
+<div class="wire-left">
+<span aria-hidden="true" class="wire-mark"><span class="wire-pulse"></span></span>
+<span class="wire-title"><b>Lorem ipsum</b><span>Lorem · 23 dolor · <span data-wire-contributors-count="true">12</span> sit amet</span></span>
+</div>
+<div class="wire-rows">
+<div class="wire-row">
+<div aria-hidden="true" class="marquee-track">
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">52.52°N</span><span class="wire-name">Berlim</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">35.68°N</span><span class="wire-name">Tóquio</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">31.23°N</span><span class="wire-name">Xangai</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">39.90°N</span><span class="wire-name">Pequim</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">25.03°N</span><span class="wire-name">Taipé</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">1.35°N</span><span class="wire-name">Singapura</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">12.97°N</span><span class="wire-name">Bangalore</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">25.20°N</span><span class="wire-name">Dubai</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">6.52°N</span><span class="wire-name">Lagos</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">1.29°S</span><span class="wire-name">Nairóbi</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">33.92°S</span><span class="wire-name">Cidade do Cabo</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">38.72°N</span><span class="wire-name">Lisboa</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">40.42°N</span><span class="wire-name">Madri</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">48.86°N</span><span class="wire-name">Paris</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">51.51°N</span><span class="wire-name">Londres</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">52.37°N</span><span class="wire-name">Amsterdã</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">59.33°N</span><span class="wire-name">Estocolmo</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">43.65°N</span><span class="wire-name">Toronto</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">40.71°N</span><span class="wire-name">Nova York</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">37.77°N</span><span class="wire-name">São Francisco</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">19.43°N</span><span class="wire-name">Cidade do México</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">23.55°S</span><span class="wire-name">São Paulo</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">33.87°S</span><span class="wire-name">Sydney</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">52.52°N</span><span class="wire-name">Berlim</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">35.68°N</span><span class="wire-name">Tóquio</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">31.23°N</span><span class="wire-name">Xangai</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">39.90°N</span><span class="wire-name">Pequim</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">25.03°N</span><span class="wire-name">Taipé</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">1.35°N</span><span class="wire-name">Singapura</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">12.97°N</span><span class="wire-name">Bangalore</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">25.20°N</span><span class="wire-name">Dubai</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">6.52°N</span><span class="wire-name">Lagos</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">1.29°S</span><span class="wire-name">Nairóbi</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">33.92°S</span><span class="wire-name">Cidade do Cabo</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">38.72°N</span><span class="wire-name">Lisboa</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">40.42°N</span><span class="wire-name">Madri</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">48.86°N</span><span class="wire-name">Paris</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">51.51°N</span><span class="wire-name">Londres</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">52.37°N</span><span class="wire-name">Amsterdã</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">59.33°N</span><span class="wire-name">Estocolmo</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">43.65°N</span><span class="wire-name">Toronto</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">40.71°N</span><span class="wire-name">Nova York</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">37.77°N</span><span class="wire-name">São Francisco</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">19.43°N</span><span class="wire-name">Cidade do México</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">23.55°S</span><span class="wire-name">São Paulo</span></span>
+<span class="wire-item"><span class="wire-dot">·</span><span class="wire-coord">33.87°S</span><span class="wire-name">Sydney</span></span>
+</div>
+</div>
+<div class="wire-row reverse">
+<div class="marquee-track" data-wire-contributors-track="true">
+<a aria-label="Open cursoragent on GitHub" class="wire-item is-link" data-live-wire-item="0" href="https://github.com/cursoragent" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@cursoragent</span><span class="wire-role">116 commits</span></a>
+<a aria-label="Open pftom on GitHub" class="wire-item is-link" data-live-wire-item="1" href="https://github.com/pftom" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@pftom</span><span class="wire-role">104 commits</span></a>
+<a aria-label="Open lefarcen on GitHub" class="wire-item is-link" data-live-wire-item="2" href="https://github.com/lefarcen" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@lefarcen</span><span class="wire-role">81 commits</span></a>
+<a aria-label="Open Nagendhra-web on GitHub" class="wire-item is-link" data-live-wire-item="3" href="https://github.com/Nagendhra-web" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@Nagendhra-web</span><span class="wire-role">56 commits</span></a>
+<a aria-label="Open PerishCode on GitHub" class="wire-item is-link" data-live-wire-item="4" href="https://github.com/PerishCode" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@PerishCode</span><span class="wire-role">49 commits</span></a>
+<a aria-label="Open Sid-Qin on GitHub" class="wire-item is-link" data-live-wire-item="5" href="https://github.com/Sid-Qin" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@Sid-Qin</span><span class="wire-role">38 commits</span></a>
+<a aria-label="Open mrcfps on GitHub" class="wire-item is-link" data-live-wire-item="6" href="https://github.com/mrcfps" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@mrcfps</span><span class="wire-role">36 commits</span></a>
+<a aria-label="Open bulai0408 on GitHub" class="wire-item is-link" data-live-wire-item="7" href="https://github.com/bulai0408" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@bulai0408</span><span class="wire-role">31 commits</span></a>
+<a aria-label="Open nettee on GitHub" class="wire-item is-link" data-live-wire-item="8" href="https://github.com/nettee" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@nettee</span><span class="wire-role">30 commits</span></a>
+<a aria-label="Open xxiaoxiong on GitHub" class="wire-item is-link" data-live-wire-item="9" href="https://github.com/xxiaoxiong" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@xxiaoxiong</span><span class="wire-role">29 commits</span></a>
+<a aria-label="Open YUHAO-corn on GitHub" class="wire-item is-link" data-live-wire-item="10" href="https://github.com/YUHAO-corn" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@YUHAO-corn</span><span class="wire-role">26 commits</span></a>
+<a aria-label="Open alchemistklk on GitHub" class="wire-item is-link" data-live-wire-item="11" href="https://github.com/alchemistklk" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@alchemistklk</span><span class="wire-role">25 commits</span></a>
+<a aria-label="Open you on GitHub" class="wire-item is-link" data-live-wire-item="12" href="https://github.com/nexu-io/open-design/graphs/contributors" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@lorem</span><span class="wire-role">ipsum dolor</span></a>
+<a aria-label="Open cursoragent on GitHub" class="wire-item is-link" data-live-wire-item="13" href="https://github.com/cursoragent" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@cursoragent</span><span class="wire-role">116 commits</span></a>
+<a aria-label="Open pftom on GitHub" class="wire-item is-link" data-live-wire-item="14" href="https://github.com/pftom" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@pftom</span><span class="wire-role">104 commits</span></a>
+<a aria-label="Open lefarcen on GitHub" class="wire-item is-link" data-live-wire-item="15" href="https://github.com/lefarcen" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@lefarcen</span><span class="wire-role">81 commits</span></a>
+<a aria-label="Open Nagendhra-web on GitHub" class="wire-item is-link" data-live-wire-item="16" href="https://github.com/Nagendhra-web" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@Nagendhra-web</span><span class="wire-role">56 commits</span></a>
+<a aria-label="Open PerishCode on GitHub" class="wire-item is-link" data-live-wire-item="17" href="https://github.com/PerishCode" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@PerishCode</span><span class="wire-role">49 commits</span></a>
+<a aria-label="Open Sid-Qin on GitHub" class="wire-item is-link" data-live-wire-item="18" href="https://github.com/Sid-Qin" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@Sid-Qin</span><span class="wire-role">38 commits</span></a>
+<a aria-label="Open mrcfps on GitHub" class="wire-item is-link" data-live-wire-item="19" href="https://github.com/mrcfps" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@mrcfps</span><span class="wire-role">36 commits</span></a>
+<a aria-label="Open bulai0408 on GitHub" class="wire-item is-link" data-live-wire-item="20" href="https://github.com/bulai0408" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@bulai0408</span><span class="wire-role">31 commits</span></a>
+<a aria-label="Open nettee on GitHub" class="wire-item is-link" data-live-wire-item="21" href="https://github.com/nettee" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@nettee</span><span class="wire-role">30 commits</span></a>
+<a aria-label="Open xxiaoxiong on GitHub" class="wire-item is-link" data-live-wire-item="22" href="https://github.com/xxiaoxiong" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@xxiaoxiong</span><span class="wire-role">29 commits</span></a>
+<a aria-label="Open YUHAO-corn on GitHub" class="wire-item is-link" data-live-wire-item="23" href="https://github.com/YUHAO-corn" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@YUHAO-corn</span><span class="wire-role">26 commits</span></a>
+<a aria-label="Open alchemistklk on GitHub" class="wire-item is-link" data-live-wire-item="24" href="https://github.com/alchemistklk" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@alchemistklk</span><span class="wire-role">25 commits</span></a>
+<a aria-label="Open you on GitHub" class="wire-item is-link" data-live-wire-item="25" href="https://github.com/nexu-io/open-design/graphs/contributors" rel="noreferrer noopener" target="_blank"><span class="wire-dot">·</span><span class="wire-handle">@lorem</span><span class="wire-role">ipsum dolor</span></a>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- official-strip -->
+<section aria-label="Fontes oficiais do Open Design" class="official-strip" data-od-id="official-strip">
+<div class="container">
+<div class="official-strip-inner" data-reveal="true" data-revealed="true">
+<span class="official-strip-label">Lorem ipsum <span class="ix">· Nº 00</span></span>
+<ul class="official-strip-list">
+<li><a href="/official/"><span class="label">Lorem ipsum</span><span class="value">open-design.ai</span></a></li>
+<li><a href="https://github.com/nexu-io/open-design" rel="noreferrer noopener" target="_blank"><span class="label">Dolor sit</span><span class="value">nexu-io/open-design</span></a></li>
+<li><a href="https://github.com/nexu-io/open-design/releases" rel="noreferrer noopener" target="_blank"><span class="label">Amet</span><span class="value" data-github-version="true">v0.7.0</span></a></li>
+<li><a href="https://github.com/nexu-io/open-design/releases" rel="noreferrer noopener" target="_blank"><span class="label">Consectetur</span><span class="value">Desktop · macOS · Win · Linux</span></a></li>
+<li><a href="https://github.com/nexu-io/open-design#readme" rel="noreferrer noopener" target="_blank"><span class="label">Elit</span><span class="value">README + /quickstart/</span></a></li>
+<li><a href="https://discord.gg/9ptkbbqRu" rel="noreferrer noopener" target="_blank"><span class="label">Sed do</span><span class="value">Eiusmod</span></a></li>
+</ul>
+</div>
+</div>
+</section>
+
+<!-- about -->
+<section class="about" data-od-id="about">
+<div class="container">
+<div class="sec-rule">
+<span class="roman">I.</span>
+<span class="meta-grp"><span>Lorem / Ipsum</span><span class="dot-mark">•</span><span>Open Design / Dolor 01</span></span>
+<span>002 / 008</span>
+</div>
+<div class="about-grid">
+<div class="about-copy" data-reveal="true" data-revealed="true">
+<span class="label">Lorem ipsum dolor <span class="ix">· Nº 02</span></span>
+<h2 class="display">Lorem <em>ipsum dolor</em> sit amet <em>consectetur</em> adipiscing, sed do eiusmod<span class="dot">.</span></h2>
+<p class="lead">Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat duis aute irure dolor.</p>
+<a class="btn btn-ghost" href="https://github.com/nexu-io/open-design/tree/main/apps/daemon" rel="noreferrer noopener" target="_blank">Lorem ipsum dolor sit<span class="arrow"><svg viewbox="0 0 24 24"><path d="M5 19L19 5M19 5H8M19 5v11"></path></svg></span></a>
+<div class="footer-row">
+<span class="mark">Ø</span>
+<span>Lorem · Ipsum · Dolor · Amet</span>
+<span class="stamp"><span>Lorem ipsum</span><span style="color:var(--ink)">Est. MMXXVI</span></span>
+</div>
+</div>
+<div class="about-art" data-reveal="right" data-revealed="true">
+<img alt="" decoding="async" src="assets/f814cb21154fc2af_about.png"/>
+<div class="about-side-note">
+<b></b>
+<span>Lorem ipsum dolor<br/></span>
+<span>sit amet consectetur<br/></span>
+<span>adipiscing elit sed do<br/></span>
+<span>eiusmod tempor<br/></span>
+<span>incididunt ut labore.<br/></span>
+</div>
+<div class="about-caption"><b>Lorem ipsum · dolor sit · amet consectetur adipiscing. (Open Design, MMXXVI)</b></div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- capabilities -->
+<section class="capabilities" data-od-id="capabilities" id="agents">
+<div class="container">
+<div class="sec-rule">
+<span class="roman">II.</span>
+<span class="meta-grp"><span>Lorem · Ipsum · Dolor</span><span class="dot-mark">•</span><span>4 sit amet / 1 elit</span></span>
+<span>003 / 008</span>
+</div>
+<div class="capabilities-grid">
+<div class="capabilities-art" data-reveal="left" data-revealed="true">
+<span class="corner tl"></span><span class="corner br"></span>
+<img alt="" decoding="async" src="assets/4796a103bd847730_capabilities.png"/>
+<div class="ribbon"><b>OPEN DESIGN · LOREM IPSUM DOLOR · OD/26</b></div>
+</div>
+<div class="capabilities-copy" data-reveal="true" data-revealed="true">
+<span class="label">Lorem ipsum <span class="ix">· Nº 03</span></span>
+<h2 class="display">Lorem, ipsum et dolor sit <em>amet consectetur</em> adipiscing<span class="dot">.</span></h2>
+<p class="lead">Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua enim ad minim veniam.</p>
+<div class="cards">
+<div class="card" data-reveal="true" data-revealed="true">
+<div class="num">01<span class="tag">Lorem</span></div>
+<svg class="icon" fill="none" stroke="currentColor" stroke-width="1.5" viewbox="0 0 24 24"><circle cx="9" cy="9" r="5"></circle><path d="M14 14l5 5"></path></svg>
+<h3><span>Lorem,</span><span><br/>ipsum dolor</span></h3>
+<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore.</p>
+<a aria-label="Ver todas as skills no GitHub" class="arrow-mark" href="https://github.com/nexu-io/open-design/tree/main/skills" rel="noreferrer noopener" target="_blank"><svg viewbox="0 0 24 24"><path d="M5 19L19 5M19 5H8M19 5v11"></path></svg></a>
+</div>
+<div class="card" data-reveal="true" data-revealed="true">
+<div class="num">02<span class="tag">Ipsum</span></div>
+<svg class="icon" fill="none" stroke="currentColor" stroke-width="1.5" viewbox="0 0 24 24"><rect height="8" width="8" x="3.5" y="3.5"></rect><rect height="8" width="8" x="12.5" y="3.5"></rect><rect height="8" width="8" x="3.5" y="12.5"></rect><rect height="8" width="8" x="12.5" y="12.5"></rect></svg>
+<h3><span>Dolor Sit</span><span><br/>amet elit</span></h3>
+<p>Lorem ipsum dolor sit amet — consectetur, adipiscing, elit, sed do eiusmod…</p>
+<a aria-label="Ver todos os design systems no GitHub" class="arrow-mark" href="https://github.com/nexu-io/open-design/tree/main/design-systems" rel="noreferrer noopener" target="_blank"><svg viewbox="0 0 24 24"><path d="M5 19L19 5M19 5H8M19 5v11"></path></svg></a>
+</div>
+<div class="card" data-reveal="true" data-revealed="true">
+<div class="num">03<span class="tag">Dolor</span></div>
+<svg class="icon" fill="none" stroke="currentColor" stroke-width="1.5" viewbox="0 0 24 24"><circle cx="8" cy="12" r="4.5"></circle><circle cx="16" cy="12" r="4.5"></circle></svg>
+<h3><span>12 Lorem</span><span><br/>ipsum sit</span></h3>
+<p>Lorem · Ipsum · Dolor · Sit · Amet · Consectetur · Elit · Sed · Do · Eiusmod · Tempor · Ut — incididunt ut labore et dolore.</p>
+<a aria-label="Ver o código-fonte dos adaptadores de agente no GitHub" class="arrow-mark" href="https://github.com/nexu-io/open-design/tree/main/apps/daemon" rel="noreferrer noopener" target="_blank"><svg viewbox="0 0 24 24"><path d="M5 19L19 5M19 5H8M19 5v11"></path></svg></a>
+</div>
+<div class="card" data-reveal="true" data-revealed="true">
+<div class="num">04<span class="tag">Amet</span></div>
+<svg class="icon" fill="none" stroke="currentColor" stroke-width="1.5" viewbox="0 0 24 24"><path d="M5 8h14v8H5z"></path><path d="M9 12h6M12 9v6"></path></svg>
+<h3><span>Amet</span><span><br/>sed do eiusmod</span></h3>
+<p>Lorem ipsum dolor sit amet. Consectetur, adipiscing, elit sed do eiusmod tempor — incididunt ut labore et dolore magna.</p>
+<a aria-label="Veja a configuração BYOK no GitHub" class="arrow-mark" href="https://github.com/nexu-io/open-design" rel="noreferrer noopener" target="_blank"><svg viewbox="0 0 24 24"><path d="M5 19L19 5M19 5H8M19 5v11"></path></svg></a>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- labs -->
+<section class="labs" data-od-id="labs" id="labs">
+<div class="container">
+<div class="sec-rule">
+<span class="roman">III.</span>
+<span class="meta-grp"><span>Lorem / Ipsum Dolor</span><span class="dot-mark">•</span><span>05 de 132 sit amet</span></span>
+<span>004 / 008</span>
+</div>
+<div class="labs-head">
+<div data-reveal="true" data-revealed="true">
+<span class="label">Lorem <span class="ix">· Nº 04</span></span>
+<h2 class="display" style="margin-top:30px">Lorem ipsum dolor <em>sit amet</em> consectetur, adipiscing et elit sed do eiusmod tempor<span class="dot">.</span></h2>
+</div>
+<div class="pills" data-reveal="right" data-revealed="true">
+<a class="pill active" href="/skills/">Lorem<span class="count">132</span></a>
+<a class="pill" href="/skills/mode/prototype/">Ipsum<span class="count">32</span></a>
+<a class="pill" href="/skills/mode/deck/">Dolor<span class="count">09</span></a>
+<a class="pill" href="/skills/">Sit<span class="count">02</span></a>
+<a class="pill" href="/skills/">Amet<span class="count">—</span></a>
+</div>
+</div>
+<div class="labs-meta">
+<span class="ring">05</span>
+<div class="meta-text">
+<b>Lorem ipsum dolor</b>
+<span>sit amet consectetur elit</span>
+<span><br/>adipiscing sed eiusmod</span>
+<span><br/>tempor incididunt</span>
+</div>
+</div>
+<div class="labs-grid">
+<div class="lab" data-reveal="true" data-revealed="true">
+<div class="lab-img"><span class="badge">Lorem</span><img alt="" decoding="async" src="assets/745f5b708f515637_lab-1.png"/></div>
+<div class="num-row"><span>Nº 01</span><span>2026</span></div>
+<h4>Lorem Ipsum</h4>
+<p>Lorem ipsum dolor sit amet consectetur adipiscing. Elit sed do eiusmod tempor.</p>
+<a aria-label="Abrir Magazine Decks no GitHub" class="arrow-mark" href="https://github.com/nexu-io/open-design/tree/main/skills/guizang-ppt" rel="noreferrer noopener" target="_blank"><svg viewbox="0 0 24 24"><path d="M5 19L19 5M19 5H8M19 5v11"></path></svg></a>
+</div>
+<div class="lab" data-reveal="true" data-revealed="true">
+<div class="lab-img"><span class="badge">Ipsum</span><img alt="" decoding="async" src="assets/85f8361a7144c817_lab-2.png"/></div>
+<div class="num-row"><span>Nº 02</span><span>2026</span></div>
+<h4>Dolor Sitamet</h4>
+<p>Lorem-ipsum-2 + Dolor + SitAmet. Consectetur, adipiscing, elit — sed do eiusmod tempor incididunt ut.</p>
+<a aria-label="Abrir Synthetic Matter no GitHub" class="arrow-mark" href="https://github.com/nexu-io/open-design/tree/main/skills/hyperframes" rel="noreferrer noopener" target="_blank"><svg viewbox="0 0 24 24"><path d="M5 19L19 5M19 5H8M19 5v11"></path></svg></a>
+</div>
+<div class="lab" data-reveal="true" data-revealed="true">
+<div class="lab-img"><span class="badge">Dolor</span><img alt="" decoding="async" src="assets/05f0caef01f44082_lab-3.png"/></div>
+<div class="num-row"><span>Nº 03</span><span>2026</span></div>
+<h4>Consectetur Elit</h4>
+<p>Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod. 30s tempor incididunt ut labore 30min et dolore.</p>
+<a aria-label="Abrir Prompt Choreography no GitHub" class="arrow-mark" href="https://github.com/nexu-io/open-design/tree/main/skills/design-brief" rel="noreferrer noopener" target="_blank"><svg viewbox="0 0 24 24"><path d="M5 19L19 5M19 5H8M19 5v11"></path></svg></a>
+</div>
+<div class="lab" data-reveal="true" data-revealed="true">
+<div class="lab-img"><span class="badge">Sit</span><img alt="" decoding="async" src="assets/68cf3681c8b21d85_lab-4.png"/></div>
+<div class="num-row"><span>Nº 04</span><span>2026</span></div>
+<h4>Sed Eiusmod</h4>
+<p>Lorem ipsum dolor in 5 sit amet consectetur: adipiscing · elit · sed do · eiusmod · tempor.</p>
+<a aria-label="Abrir Visual Reasoning no GitHub" class="arrow-mark" href="https://github.com/nexu-io/open-design/tree/main/skills/critique" rel="noreferrer noopener" target="_blank"><svg viewbox="0 0 24 24"><path d="M5 19L19 5M19 5H8M19 5v11"></path></svg></a>
+</div>
+<div class="lab" data-reveal="true" data-revealed="true">
+<div class="lab-img"><span class="badge">Amet</span><img alt="" decoding="async" src="assets/5d3d37e337185243_lab-5.png"/></div>
+<div class="num-row"><span>Nº 05</span><span>2026</span></div>
+<h4>Tempor Ut</h4>
+<p>Lorem ipsum dolor sit amet. Consectetur adipiscing. Elit sed do eiusmod tempor. Incididunt ut labore et dolore magna.</p>
+<a aria-label="Abrir Soft Systems no GitHub" class="arrow-mark" href="https://github.com/nexu-io/open-design/tree/main/apps/daemon" rel="noreferrer noopener" target="_blank"><svg viewbox="0 0 24 24"><path d="M5 19L19 5M19 5H8M19 5v11"></path></svg></a>
+</div>
+</div>
+<div class="labs-foot">
+<div class="progress">
+<span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span class="on"></span><span></span><span></span><span></span>
+</div>
+<span class="meta">05 / 132 LOREM · <a class="library-link" href="/skills/" style="color:var(--coral)">IPSUM DOLOR SIT AMET →</a></span>
+</div>
+</div>
+</section>
+
+<!-- method -->
+<section class="method" data-od-id="method">
+<div class="container">
+<div class="sec-rule">
+<span class="roman">IV.</span>
+<span class="meta-grp"><span>Lorem / Ipsum</span><span class="dot-mark">•</span><span>04 dolor, sit amet</span></span>
+<span>005 / 008</span>
+</div>
+<div class="method-head">
+<div data-reveal="true" data-revealed="true">
+<span class="label">Lorem <span class="ix">· Nº 05</span></span>
+<h2 class="display" style="margin-top:30px">Lorem <em>ipsum</em> dolor<span class="dot">.</span></h2>
+</div>
+<div class="right" data-reveal="right" data-revealed="true">
+<span class="plus">+</span>
+<p>Lorem ipsum dolor sit amet, consectetur et adipiscing — elit sed do eiusmod, tempor incididunt.</p>
+</div>
+</div>
+<div class="method-grid">
+<div class="method-step" data-reveal="true" data-revealed="true">
+<div class="num">01</div>
+<h4>Lorem <span class="arrow-r">→</span></h4>
+<p>Lorem ipsum dolor sit amet consectetur adipiscing 12 elit sed do eiusmod tempor 132 incididunt + 150 ut labore et dolore.</p>
+<div class="img"><img alt="" decoding="async" src="assets/04461f007c2240c4_method-1.png"/></div>
+</div>
+<div class="method-step" data-reveal="true" data-revealed="true">
+<div class="num">02</div>
+<h4>Ipsum <span class="arrow-r">→</span></h4>
+<p>Lorem ipsum 1 dolor sit amet consectetur — adipiscing, elit, sed, eiusmod, tempor incididunt. Ut labore 30 dolore.</p>
+<div class="img"><img alt="" decoding="async" src="assets/21bd814b92909101_method-2.png"/></div>
+</div>
+<div class="method-step" data-reveal="true" data-revealed="true">
+<div class="num">03</div>
+<h4>Dolor <span class="arrow-r">→</span></h4>
+<p>Lorem ipsum 5 dolor sit amet consectetur. Adipiscing elit, sed do eiusmod, tempor incididunt ut labore.</p>
+<div class="img"><img alt="" decoding="async" src="assets/b77d523a97330bec_method-3.png"/></div>
+</div>
+<div class="method-step" data-reveal="true" data-revealed="true">
+<div class="num">04</div>
+<h4>Amet <span class="arrow-r">→</span></h4>
+<p>Lorem ipsum dolor sit amet, consectetur adipiscing elit sed, do eiusmod tempor / incididunt / ut / labore / dolore.</p>
+<div class="img"><img alt="" decoding="async" src="assets/9cd75c717147eb6c_method-4.png"/></div>
+</div>
+</div>
+<div class="method-foot">
+<div class="left">
+<span class="ring"></span>
+<span>Lorem ipsum dolor. Sit amet consectetur.</span>
+</div>
+<div class="right">
+<a class="method-repo-link" href="https://github.com/nexu-io/open-design" rel="noreferrer noopener" target="_blank"><b>github.com/nexu-io/open-design</b></a> · Apache-2.0</div>
+</div>
+</div>
+</section>
+
+<!-- work -->
+<section class="tight" data-od-id="work">
+<div class="work">
+<div class="work-rule">
+<span class="roman">V.</span>
+<span style="display:inline-flex;gap:24px"><span>Lorem Ipsum · Dolor 2026</span><span style="color:var(--coral)">•</span><span>Sit amet Open Design</span></span>
+<span>006 / 008</span>
+</div>
+<div class="work-grid">
+<div class="work-copy" data-reveal="true" data-revealed="true">
+<span class="label">Lorem ipsum dolor</span>
+<h2>Lorem ipsum dolor sit amet <em>consectetur</em> adipiscing <em>elit sed do eiusmod</em> <span class="dot">.</span></h2>
+<a class="work-link" href="/skills/">Lorem ipsum 132 dolor</a>
+</div>
+<a class="work-card" data-reveal="true" data-revealed="true" href="https://github.com/nexu-io/open-design/tree/main/skills/guizang-ppt" rel="noreferrer noopener" target="_blank">
+<div class="label-row"><span class="small-label">Lorem ipsum</span><span class="index">01 / 132</span></div>
+<h3>lorem-ipsum</h3>
+<p>Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod. Tempor incididunt ut labore, et dolore magna aliqua.</p>
+<div class="img"><img alt="" decoding="async" src="assets/72217c0c07b7fd8b_work-1.png"/></div>
+<div class="meta-row"><span class="year">2026 · LOREM</span><span>IPSUM</span></div>
+</a>
+<a class="work-card alt" data-reveal="true" data-revealed="true" href="https://github.com/tw93/kami" rel="noreferrer noopener" target="_blank">
+<div class="label-row"><span class="small-label">Dolor sit amet</span><span class="index">04 / 150</span></div>
+<h3>dolor</h3>
+<p>Lorem ipsum dolor sit amet. Consectetur adipiscing elit, sed do eiusmod, tempor incididunt ut labore — et dolore magna (LO · re-IP · su).</p>
+<div class="img"><img alt="" decoding="async" src="assets/d289ec838ebf0a99_work-2.png"/></div>
+<div class="meta-row"><span class="year">2026 · DOLOR</span><span>AMET</span></div>
+</a>
+</div>
+<div class="work-arrows">
+<button class="nav-btn" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M14 6l-6 6 6 6"></path></svg></button>
+<button class="nav-btn active" type="button"><svg fill="none" height="14" stroke="currentColor" stroke-width="1.6" viewbox="0 0 24 24" width="14"><path d="M10 6l6 6-6 6"></path></svg></button>
+</div>
+</div>
+</section>
+
+<!-- testimonial -->
+<section class="testimonial" data-od-id="testimonial">
+<div class="container">
+<div class="sec-rule">
+<span class="roman">VI.</span>
+<span class="meta-grp"><span>Lorem / Ipsum</span><span class="dot-mark">•</span><span>Dolor sit amet</span></span>
+<span>007 / 008</span>
+</div>
+<div class="testimonial-grid">
+<div class="testimonial-copy" data-reveal="true" data-revealed="true">
+<span class="label">Lorem ipsum <span class="ix">· Nº 06</span></span>
+<h2 style="margin-top:30px">"Lorem ipsum dolor sit amet, consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."</h2>
+<div class="author">
+<span class="avatar">l</span>
+<p>Lorem Ipsum<br/><span>Dolor Sit · Amet Elit</span></p>
+</div>
+<div class="divider"></div>
+<p class="partners-text">Lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor.</p>
+<div class="partners">
+<a class="partner" data-reveal="true" data-revealed="true" href="https://github.com/alchaincyf/huashu-design" rel="noreferrer noopener" target="_blank">
+<div class="glyph"><svg fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 80 30"><path d="M5 24L20 6L35 24M12 18h16"></path></svg></div>
+<span>lorem-ipsum</span><small>Dolor</small>
+</a>
+<a class="partner" data-reveal="true" data-revealed="true" href="https://github.com/op7418/guizang-ppt-skill" rel="noreferrer noopener" target="_blank">
+<div class="glyph"><svg fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 80 30"><path d="M8 24L20 6L24 22L36 4"></path></svg></div>
+<span>sit-amet</span><small>Elit</small>
+</a>
+<a class="partner" data-reveal="true" data-revealed="true" href="https://github.com/OpenCoworkAI/open-codesign" rel="noreferrer noopener" target="_blank">
+<div class="glyph"><svg fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 80 30"><circle cx="15" cy="15" r="9"></circle><path d="M15 6v18M6 15h18"></path></svg></div>
+<span>consectetur</span><small>Sed</small>
+</a>
+<a class="partner" data-reveal="true" data-revealed="true" href="https://devin.ai/terminal" rel="noreferrer noopener" target="_blank">
+<div class="glyph"><svg fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 80 30"><path d="M5 8l9 7-9 7M20 24h18"></path></svg></div>
+<span>Tempor IU</span><small>Labore</small>
+</a>
+<a class="partner" data-reveal="true" data-revealed="true" href="https://github.com/heygen-com/hyperframes" rel="noreferrer noopener" target="_blank">
+<div class="glyph"><svg fill="none" stroke="currentColor" stroke-width="2" viewbox="0 0 80 30"><rect height="18" width="22" x="4" y="5"></rect><rect height="18" width="22" x="14" y="9"></rect></svg></div>
+<span>eiusmod</span><small>Magna</small>
+</a>
+</div>
+<a class="read-more" href="https://github.com/nexu-io/open-design" rel="noreferrer noopener" target="_blank">Lorem ipsum dolor</a>
+</div>
+<div class="testimonial-art" data-reveal="right" data-revealed="true">
+<img alt="" decoding="async" src="assets/ec252eb625c51b42_testimonial.png"/>
+</div>
+</div>
+</div>
+</section>
+
+<!-- faq -->
+<section class="faq" data-od-id="faq" id="faq">
+<div class="container">
+<div class="sec-rule">
+<span class="roman">VI·5.</span>
+<span class="meta-grp"><span>Lorem ipsum</span><span class="dot-mark">•</span><span>Dolor sit amet, consectetur adipiscing elit</span></span>
+<span>013 / 008</span>
+</div>
+<div class="faq-head" data-reveal="true" data-revealed="true">
+<span class="label">Lorem ipsum dolor sit amet <span class="ix">· Nº 06.5</span></span>
+<h2 class="display">Lorem ipsum <em>dolor sit</em>, <em>amet elit</em> et a <em>consectetur adipiscing elit sed do</em><span class="dot">.</span></h2>
+</div>
+<ol class="faq-list">
+<li class="faq-item" data-reveal="true" data-revealed="true"><details><summary><span class="faq-index">01</span><span class="faq-q">Lorem ipsum dolor sit?</span><span aria-hidden="true" class="faq-toggle">+</span></summary><p class="faq-a">Dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse.</p></details></li>
+<li class="faq-item" data-reveal="true" data-revealed="true"><details><summary><span class="faq-index">02</span><span class="faq-q">Sit amet, consectetur?</span><span aria-hidden="true" class="faq-toggle">+</span></summary><p class="faq-a">Do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit.</p></details></li>
+<li class="faq-item" data-reveal="true" data-revealed="true"><details><summary><span class="faq-index">03</span><span class="faq-q">Adipiscing elit, sed do eiusmod tempor incididunt?</span><span aria-hidden="true" class="faq-toggle">+</span></summary><p class="faq-a">Dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit.</p></details></li>
+<li class="faq-item" data-reveal="true" data-revealed="true"><details><summary><span class="faq-index">04</span><span class="faq-q">Do eiusmod tempor incididunt?</span><span aria-hidden="true" class="faq-toggle">+</span></summary><p class="faq-a">Veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat.</p></details></li>
+<li class="faq-item" data-reveal="true" data-revealed="true"><details><summary><span class="faq-index">05</span><span class="faq-q">Incididunt ut labore et dolore magna aliqua. Ut?</span><span aria-hidden="true" class="faq-toggle">+</span></summary><p class="faq-a">Ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam.</p></details></li>
+<li class="faq-item" data-reveal="true" data-revealed="true"><details><summary><span class="faq-index">06</span><span class="faq-q">Et dolore magna aliqua. Ut enim ad minim?</span><span aria-hidden="true" class="faq-toggle">+</span></summary><p class="faq-a">Aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui.</p></details></li>
+<li class="faq-item" data-reveal="true" data-revealed="true"><details><summary><span class="faq-index">07</span><span class="faq-q">Aliqua. Ut enim ad minim veniam, quis nostrud exercitation?</span><span aria-hidden="true" class="faq-toggle">+</span></summary><p class="faq-a">Velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque.</p></details></li>
+<li class="faq-item" data-reveal="true" data-revealed="true"><details><summary><span class="faq-index">08</span><span class="faq-q">Ad minim veniam, quis nostrud exercitation ullamco laboris?</span><span aria-hidden="true" class="faq-toggle">+</span></summary><p class="faq-a">Pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae.</p></details></li>
+<li class="faq-item" data-reveal="true" data-revealed="true"><details><summary><span class="faq-index">09</span><span class="faq-q">Quis nostrud exercitation?</span><span aria-hidden="true" class="faq-toggle">+</span></summary><p class="faq-a">Sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Lorem ipsum.</p></details></li>
+<li class="faq-item" data-reveal="true" data-revealed="true"><details><summary><span class="faq-index">10</span><span class="faq-q">Ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in?</span><span aria-hidden="true" class="faq-toggle">+</span></summary><p class="faq-a">Anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod.</p></details></li>
+<li class="faq-item" data-reveal="true" data-revealed="true"><details><summary><span class="faq-index">11</span><span class="faq-q">Ut aliquip ex ea commodo consequat. Duis?</span><span aria-hidden="true" class="faq-toggle">+</span></summary><p class="faq-a">Unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p></details></li>
+<li class="faq-item" data-reveal="true" data-revealed="true"><details><summary><span class="faq-index">12</span><span class="faq-q">Ea commodo consequat. Duis aute irure dolor in?</span><span aria-hidden="true" class="faq-toggle">+</span></summary><p class="faq-a">Accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut.</p></details></li>
+<li class="faq-item" data-reveal="true" data-revealed="true"><details><summary><span class="faq-index">13</span><span class="faq-q">Duis aute irure dolor in reprehenderit?</span><span aria-hidden="true" class="faq-toggle">+</span></summary><p class="faq-a">Ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo.</p></details></li>
+</ol>
+</div>
+</section>
+
+<!-- cta -->
+<section class="cta" data-od-id="cta" id="contact">
+<div class="container">
+<div class="sec-rule">
+<span class="roman">VII.</span>
+<span class="meta-grp"><span>Lorem / Ipsum</span><span class="dot-mark">•</span><span>Dolor sit amet elit</span></span>
+<span>008 / 008</span>
+</div>
+<div class="cta-grid">
+<div data-reveal="true" data-revealed="true">
+<span class="label">Lorem ipsum dolor <span class="ix">· Nº 07</span></span>
+<h2 class="display">Lorem ipsum dolor <em>sit amet</em> et <em>consectetur</em> adipiscing<span class="dot">.</span></h2>
+<p class="lead">Lorem ipsum dolor sit amet, consectetur adipiscing elit sed do eiusmod tempor. Ut labore et dolore magna.</p>
+<div class="cta-actions">
+<a class="btn btn-primary" href="https://github.com/nexu-io/open-design" rel="noreferrer noopener" target="_blank">Lorem ipsum dolor<span class="arrow"><svg viewbox="0 0 24 24"><path d="M5 19L19 5M19 5H8M19 5v11"></path></svg></span></a>
+<a class="email-pill" href="https://github.com/nexu-io/open-design/issues" rel="noreferrer noopener" target="_blank">Sit amet elit<span class="arrow-circle">→</span></a>
+</div>
+<div class="cta-foot">
+<span class="stamp">● Lorem</span>
+<span><span data-github-version="true">v0.7.0</span> / Apache-2.0</span>
+<span style="margin-left:auto">52.5200° N · 13.4050° E</span>
+</div>
+</div>
+<div class="cta-art" data-reveal="right" data-revealed="true">
+<img alt="" decoding="async" src="assets/92ea24d9236233b9_cta.png"/>
+<div class="index">Nº 08</div>
+<div class="ribbon">OPEN DESIGN · LOREM.</div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- footer -->
+<footer data-od-id="footer">
+<div class="container">
+<div class="foot-grid">
+<div class="foot-brand">
+<a class="brand" href="#top"><span class="brand-mark"><img alt="" height="44" src="assets/f8ebdd6a7d3cf723_logo.webp" width="44"/></span><span class="brand-name">Open Design</span></a>
+<p style="margin-top:18px">Lorem ipsum dolor sit amet consectetur. Adipiscing elit sed do eiusmod tempor, incididunt ut labore et dolore magna.</p>
+<a aria-label="Baixe o app desktop do Open Design" class="foot-cta" href="https://github.com/nexu-io/open-design/releases" rel="noreferrer noopener" target="_blank">Lorem ipsum<span class="meta">macOS · <span data-github-version="true">v0.7.0</span></span></a>
+</div>
+<div class="foot-col">
+<h5>Lorem</h5>
+<ul>
+<li><a href="#agents">Ipsum dolor</a></li>
+<li><a href="#labs">Sit</a></li>
+<li><a href="https://github.com/nexu-io/open-design/tree/main/apps/daemon" rel="noreferrer noopener" target="_blank">Amet</a></li>
+<li><a href="https://github.com/nexu-io/open-design" rel="noreferrer noopener" target="_blank">Consectetur</a></li>
+</ul>
+</div>
+<div class="foot-col">
+<h5>Ipsum</h5>
+<ul>
+<li><a href="/skills/">132 Lorem ipsum</a></li>
+<li><a href="/systems/">150 Dolor</a></li>
+<li><a href="/templates/">Sit amet</a></li>
+<li><a href="/craft/">Elit</a></li>
+<li><a href="/html-anything/">Sed do eiusmod</a></li>
+</ul>
+</div>
+<div class="foot-col">
+<h5>Dolor</h5>
+<ul>
+<li><a href="https://github.com/nexu-io/open-design" rel="noreferrer noopener" target="_blank">GitHub</a></li>
+<li><a href="https://github.com/nexu-io/open-design/issues" rel="noreferrer noopener" target="_blank">Issues</a></li>
+<li><a href="https://github.com/nexu-io/open-design/graphs/contributors" rel="noreferrer noopener" target="_blank">Tempor</a></li>
+<li><a href="https://github.com/nexu-io/open-design/releases" rel="noreferrer noopener" target="_blank">Releases</a></li>
+<li><a href="https://discord.gg/9ptkbbqRu" rel="noreferrer noopener" target="_blank">Discord</a></li>
+</ul>
+</div>
+<div class="foot-col">
+<h5>Open Design</h5>
+<ul>
+<li><a href="/official/">Lorem ipsum</a></li>
+<li><a href="/quickstart/">Dolor sit</a></li>
+<li><a href="/agents/">Amet elit</a></li>
+<li><a href="/compare/">Sed do</a></li>
+<li><a href="/alternatives/claude-design/">Eiusmod tempor incididunt</a></li>
+</ul>
+</div>
+</div>
+<div class="foot-bottom">
+<span><span class="pulse"></span>● <b style="color:var(--ink)">Open Design · Apache-2.0 · 2026 / Lorem 01 / Ipsum Nº 26</b></span>
+<span class="right"><span>Lorem / Ipsum / Dolor</span><span>52.5200° N · 13.4050° E</span><span style="color:var(--coral)">♥ MMXXVI</span></span>
+</div>
+<div class="foot-mega"><div class="word" data-reveal="rise-lg" data-revealed="true">Open <span style="color:var(--coral)">Design</span>.</div></div>
+</div>
+</footer>
+
+</div>
+
+<!-- js -->
+<!-- lazy-loads images/videos tagged data-precise-src via IntersectionObserver -->
+<script src="assets/js/lazy-media.js"></script>
+<!-- language selector: the locale <details> menu only (closes on outside click / Escape; no routing) -->
+<script src="assets/js/locale-switch.js"></script>
+<!-- live GitHub stats (stars, version), contributor wire marquee, scroll-reveal observer, sticky-header behaviour -->
+<script src="assets/js/interactions.js"></script>
+</body>
+</html>

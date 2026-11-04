@@ -365,6 +365,57 @@ export function checkData(r) {
   return w;
 }
 
+// ── MELHORIAS NAS CAMPANHAS ───────────────────────────────────
+export const OBJECTIVES = {
+  OUTCOME_LEADS: 'Leads', OUTCOME_SALES: 'Vendas', OUTCOME_TRAFFIC: 'Tráfego', OUTCOME_AWARENESS: 'Reconhecimento',
+  OUTCOME_ENGAGEMENT: 'Engajamento', OUTCOME_APP_PROMOTION: 'App', LEAD_GENERATION: 'Leads', CONVERSIONS: 'Conversões',
+  MESSAGES: 'Mensagens', LINK_CLICKS: 'Tráfego', REACH: 'Alcance', BRAND_AWARENESS: 'Reconhecimento', VIDEO_VIEWS: 'Visualizações',
+  SEARCH: 'Pesquisa', PERFORMANCE_MAX: 'PMax', DISPLAY: 'Display', VIDEO: 'YouTube', SHOPPING: 'Shopping', DEMAND_GEN: 'Demand Gen', SMART: 'Inteligente',
+};
+const META_CONVERSION = ['OUTCOME_LEADS', 'OUTCOME_SALES', 'OUTCOME_ENGAGEMENT', 'LEAD_GENERATION', 'CONVERSIONS', 'MESSAGES', 'PRODUCT_CATALOG_SALES'];
+export const isConversionCampaign = c => (c.plat === 'google' ? !['VIDEO', 'DISPLAY'].includes(c.objective) || c.res > 0 : META_CONVERSION.includes(c.objective) || c.res > 0);
+
+// Regras automáticas (usadas quando a IA não está configurada). Avaliam cada campanha pelo objetivo dela.
+export function campaignImprovements(r) {
+  const list = (r.campaigns || []).filter(c => c.inv > 0);
+  if (!list.length) return [];
+  const out = [];
+  const plat = c => (c.plat === 'meta' ? 'Meta Ads' : 'Google Ads');
+  const add = (prioridade, c, acao, motivo) => out.push({ prioridade, plataforma: c ? plat(c) : 'Geral', campanha: c ? c.name : 'Conta inteira', acao, motivo, done: false });
+  const conv = list.filter(isConversionCampaign);
+  const totInv = list.reduce((s, c) => s + c.inv, 0);
+  // Média de custo por resultado por plataforma: "conversões" do Google e da Meta não são comparáveis entre si.
+  const avgOf = plat => {
+    const same = conv.filter(c => c.plat === plat && c.res);
+    const res = same.reduce((s, c) => s + c.res, 0);
+    return same.length >= 2 && res ? same.reduce((s, c) => s + c.inv, 0) / res : 0;
+  };
+  const avgs = { meta: avgOf('meta'), google: avgOf('google') };
+  const allClicks = list.reduce((s, c) => s + c.clicks, 0), allCpc = allClicks ? list.reduce((s, c) => s + (c.clicks ? c.inv : 0), 0) / allClicks : 0;
+
+  conv.forEach(c => {
+    const avg = avgs[c.plat];
+    const cpr = c.res ? c.inv / c.res : null;
+    if (!c.res && c.inv >= Math.max(totInv * 0.1, 50)) add('alta', c, 'Pausar ou reestruturar a campanha', `${fmt(c.inv)} investidos no mês sem nenhum resultado.`);
+    else if (cpr && avg && cpr > avg * 1.5) add('media', c, 'Reduzir a verba e revisar público e criativos', `Custo por resultado de ${fmt(cpr)}, ${dec((cpr / avg - 1) * 100, 0)}% acima da média das campanhas da plataforma (${fmt(avg)}).`);
+    else if (cpr && avg && cpr < avg * 0.75 && c.res >= 5) add('alta', c, 'Escalar a verba em 20% a 30%', `Melhor eficiência da plataforma: ${fmtN(c.res)} resultados a ${fmt(cpr)} cada, contra média de ${fmt(avg)}.`);
+    if (cpr && c.prev && c.prev.res) {
+      const pcpr = c.prev.inv / c.prev.res, ch = (cpr - pcpr) / pcpr * 100;
+      if (ch >= 25) add('media', c, 'Investigar a piora em relação ao mês anterior', `Custo por resultado subiu ${dec(ch, 0)}% (de ${fmt(pcpr)} para ${fmt(cpr)}).`);
+    }
+  });
+  list.forEach(c => {
+    if (c.plat === 'meta' && c.freq && c.freq > 3.5) add('media', c, 'Renovar criativos ou ampliar o público', `Frequência de ${dec(c.freq, 1)}: o mesmo público está vendo os anúncios muitas vezes, sinal de fadiga.`);
+    const ctr = c.imps ? c.clicks / c.imps * 100 : 0;
+    if (c.plat === 'meta' && c.clicks && c.imps > 5000 && ctr < 0.7) add('baixa', c, 'Testar novos ganchos e chamadas nos criativos', `CTR de ${dec(ctr, 2)}%, abaixo de 0,7%.`);
+    if (!isConversionCampaign(c) && c.clicks && allCpc && c.inv / c.clicks > allCpc * 1.5) add('baixa', c, 'Revisar segmentação para baratear o clique', `CPC de ${fmt(c.inv / c.clicks)}, acima da média da conta (${fmt(allCpc)}).`);
+    if (c.plat === 'google' && c.isBudget != null && c.isBudget >= 0.2) add(c.res && c.inv / c.res <= (avgs.google || Infinity) ? 'alta' : 'media', c, 'Aumentar o orçamento diário', `A campanha deixa de aparecer em ${dec(c.isBudget * 100, 0)}% das buscas por falta de orçamento.`);
+    if (c.plat === 'google' && c.isRank != null && c.isRank >= 0.3) add('media', c, 'Melhorar anúncios, palavras-chave e lances', `${dec(c.isRank * 100, 0)}% das impressões são perdidas por classificação do anúncio (parcela de impressões de ${c.is != null ? dec(c.is * 100, 0) + '%' : '—'}).`);
+  });
+  const order = { alta: 0, media: 1, baixa: 2 };
+  return out.sort((a, b) => order[a.prioridade] - order[b.prioridade]).slice(0, 10);
+}
+
 // ── ESTILO DA ONE PAGE (usado no app e no HTML baixado) ───────
 export const REPORT_CSS = `
 .report-wrap{--op-ink:#111318;--op-text:#2B2F36;--op-soft:#8A9099;--op-line:#E4E6EA;--op-line2:#EEF0F2;--op-red:#E30613;--op-good:#16A34A;--op-bad:#DC2626;font-family:'Inter',Arial,sans-serif;background:#EEF0F3;color:var(--op-text);font-size:13px;line-height:1.45;padding:28px 16px 48px;-webkit-print-color-adjust:exact;print-color-adjust:exact}

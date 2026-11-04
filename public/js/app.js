@@ -1,6 +1,6 @@
 import { createBackend, isDemo, isMaster, lower } from './db.js';
 import { MASTER_EMAILS, DEFAULT_AGENCY } from './config.js';
-import { esc, fmt, formatMonth, metrics, renderReport, suggestInsights, checkData, downloadReport, REPORT_CSS, PIPE_FIELDS } from './report.js';
+import { esc, fmt, fmtN, formatMonth, metrics, renderReport, suggestInsights, checkData, downloadReport, REPORT_CSS, PIPE_FIELDS, campaignImprovements, OBJECTIVES, isConversionCampaign } from './report.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -661,7 +661,8 @@ async function runAiReport() {
   try {
     const res = await api.aiReport(S.client.id, month);
     let report = res.report;
-    if (!res.ai) report = await api.saveReport(S.client.id, { ...report, insights: suggestInsights(report, res.prev) });
+    if (!res.ai) report = await api.saveReport(S.client.id, { ...report, insights: suggestInsights(report, res.prev), improvements: campaignImprovements(report) });
+    S.reportTab = 'page';
     S.reports = await api.listReports(S.client.id);
     S.report = S.reports.find(x => x.id === report.id) || report;
     await syncLastReport();
@@ -751,15 +752,72 @@ async function saveReport(then) {
 
 // ── VISUALIZAÇÃO DA ONE PAGE ──────────────────────────────────
 function viewReport() {
+  const tab = S.reportTab || 'page';
+  const pending = (S.report.improvements || []).filter(i => !i.done).length;
   return `<div class="back-bar no-print">
     <button class="btn-back" data-act="nav" data-v="client">← ${esc(S.client.name)}</button>
     <button class="btn-back" data-act="report-edit">✎ Editar dados</button>
     ${S.report.source === 'windsor' ? `<span class="source-tag">${S.report.aiModel ? '✨ Análise com IA · ' : ''}dados do Windsor</span>` : ''}
     <span class="spacer"></span>
     <button class="btn-print" data-act="print">🖨️ Imprimir / PDF</button>
-    <button class="btn-dl" data-act="download">⬇️ Baixar HTML</button>
+    ${tab === 'page' ? '<button class="btn-dl" data-act="download">⬇️ Baixar HTML</button>' : ''}
   </div>
-  <div class="report-wrap">${renderReport(S.report, S.client, prevOf(S.report))}</div>`;
+  <div class="report-tabs no-print">
+    <button class="rtab ${tab === 'page' ? 'active' : ''}" data-act="rtab" data-t="page">📄 One page</button>
+    <button class="rtab ${tab === 'camp' ? 'active' : ''}" data-act="rtab" data-t="camp">🛠 Melhorias nas campanhas${pending ? `<span class="count">${pending}</span>` : ''}</button>
+  </div>
+  ${tab === 'page' ? `<div class="report-wrap">${renderReport(S.report, S.client, prevOf(S.report))}</div>` : improvementsView(S.report)}`;
+}
+
+// Aba interna (não entra na one page): ações sugeridas e números por campanha.
+function improvementsView(r) {
+  const camps = r.campaigns || [], imps = r.improvements || [];
+  if (!camps.length && !imps.length) {
+    return `<main class="main">${empty('🛠', 'Sem dados de campanhas', `Gere o relatório com IA para analisar as campanhas de ${formatMonth(r.month)} e receber o plano de melhorias.`, '<button class="btn-primary btn-ai" data-act="ai-open">✨ Gerar relatório com IA</button>')}</main>`;
+  }
+  const prio = { alta: 'Alta', media: 'Média', baixa: 'Baixa' };
+  const platCls = p => (p === 'Meta Ads' ? 'meta' : p === 'Google Ads' ? 'google' : 'geral');
+  const pct = (a, b) => (b ? (a / b * 100).toFixed(2).replace('.', ',') + '%' : '—');
+  const deltaCpr = c => {
+    if (!c.res || !c.prev || !c.prev.res) return '';
+    const ch = ((c.inv / c.res) / (c.prev.inv / c.prev.res) - 1) * 100;
+    return Math.abs(ch) < 1 ? '' : `<span class="d ${ch < 0 ? 'good' : 'bad'}">${ch > 0 ? '+' : ''}${ch.toFixed(0)}%</span>`;
+  };
+  const extra = c => (c.plat === 'meta'
+    ? (c.freq ? `${c.freq.toFixed(1).replace('.', ',')}x` : '—')
+    : (c.is != null ? `${Math.round(c.is * 100)}%${c.isRank != null || c.isBudget != null ? ` <small>perde ${Math.round((c.isRank || 0) * 100)}% rank · ${Math.round((c.isBudget || 0) * 100)}% orç.</small>` : ''}` : '—'));
+  const done = imps.filter(i => i.done).length;
+  return `<main class="main camp-view">
+    <div class="page-header">
+      <div><div class="eyebrow">Plano de ação · ${formatMonth(r.month)}</div><h1>Melhorias nas <em>campanhas</em></h1></div>
+      <div class="camp-meta">${r.aiModel ? '✨ Análise da IA' : 'Análise automática'} · ${done} de ${imps.length} feitas</div>
+    </div>
+    ${imps.length ? `<div class="card imp-list">${imps.map((i, idx) => `<label class="imp ${i.done ? 'done' : ''}">
+      <input type="checkbox" data-change="imp-done" data-i="${idx}" ${i.done ? 'checked' : ''}>
+      <div class="imp-body">
+        <div class="imp-top"><span class="prio ${esc(i.prioridade)}">${prio[i.prioridade] || esc(i.prioridade)}</span><span class="w-plat ${platCls(i.plataforma)}">${esc(i.plataforma)}</span><span class="imp-camp">${esc(i.campanha)}</span></div>
+        <div class="imp-acao">${esc(i.acao)}</div>
+        <div class="imp-motivo">${esc(i.motivo)}</div>
+      </div></label>`).join('')}</div>`
+      : '<div class="windsor-msg">Nenhuma ação sugerida: as campanhas estão dentro do esperado.</div>'}
+    <div class="section-title"><span class="dot"></span>Campanhas do mês (${camps.length})</div>
+    <div class="card table-scroll"><table class="table camp-table">
+      <thead><tr><th>Campanha</th><th>Objetivo</th><th class="r">Investimento</th><th class="r">Resultados</th><th class="r">Custo/res.</th><th class="r hide-sm">CTR</th><th class="r hide-sm">CPC</th><th class="r hide-sm">Freq. / Parcela</th></tr></thead>
+      <tbody>${camps.map(c => {
+        const conv = isConversionCampaign(c);
+        return `<tr>
+          <td><span class="w-plat ${c.plat}">${c.plat === 'meta' ? 'Meta' : 'Google'}</span> <strong>${esc(c.name)}</strong></td>
+          <td class="muted">${esc(OBJECTIVES[c.objective] || c.objective || '—')}</td>
+          <td class="r">${fmt(c.inv)}</td>
+          <td class="r">${conv ? fmtN(c.res) : '<span class="muted">n/a</span>'}</td>
+          <td class="r">${conv && c.res ? fmt(c.inv / c.res) + ' ' + deltaCpr(c) : '<span class="muted">—</span>'}</td>
+          <td class="r hide-sm">${pct(c.clicks, c.imps)}</td>
+          <td class="r hide-sm">${c.clicks ? fmt(c.inv / c.clicks) : '—'}</td>
+          <td class="r hide-sm">${extra(c)}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>
+  </main>`;
 }
 
 // ── ACESSOS (mestre / admin) ──────────────────────────────────
@@ -847,7 +905,8 @@ const actions = {
   'report-new': newReport,
   'ai-open': () => openAiModal(),
   'ai-run': () => runAiReport(),
-  'report-view': el => { S.report = findReport(el.dataset.id); show('report'); },
+  'report-view': el => { S.report = findReport(el.dataset.id); S.reportTab = 'page'; show('report'); },
+  rtab: el => { S.reportTab = el.dataset.t; render(); },
   'report-edit': el => { if (el.dataset.id) S.report = findReport(el.dataset.id); openEditor(); },
   'report-dup': el => duplicateReport(findReport(el.dataset.id)),
   'report-delete': el => safe(() => deleteReport(el.dataset.id)),
@@ -939,6 +998,13 @@ document.addEventListener('change', e => {
   if (!el) return;
   if (el.dataset.change === 'owner') { S.ownerFilter = el.value; go('clients'); }
   if (el.dataset.change === 'role') safe(() => updateAllowed(el.dataset.email, { role: el.value }, 'Papel atualizado.', false));
+  if (el.dataset.change === 'imp-done') safe(async () => {
+    const list = S.report.improvements.map((i, idx) => (idx === Number(el.dataset.i) ? { ...i, done: el.checked } : i));
+    const saved = await api.saveReport(S.client.id, { ...S.report, improvements: list });
+    S.report = { ...S.report, ...saved };
+    S.reports = S.reports.map(r => (r.id === S.report.id ? S.report : r));
+    render();
+  });
 });
 
 document.addEventListener('keydown', e => {

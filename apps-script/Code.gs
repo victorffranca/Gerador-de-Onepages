@@ -257,7 +257,7 @@ Object.assign(METHODS, {
     const prevSaved = saved.filter(function (r) { return r.month === prevMonth; })[0];
     const type = (curSaved && curSaved.type) || c.type || 'ecommerce';
 
-    const reqs = windsorRequests_(w, type);
+    const reqs = windsorRequests_(w, type, true);
     const calls = [];
     [month, prevMonth].forEach(function (m) { reqs.forEach(function (r) { calls.push({ month: m, req: r }); }); });
     const results = windsorFetchAll_(calls.map(function (x) {
@@ -290,14 +290,41 @@ Object.assign(METHODS, {
     // O mês anterior só é criado se ainda não existir (preserva o que já foi editado à mão).
     const prev = prevSaved || build(null, prevMonth);
     const cur = build(curSaved, month);
+    cur.campaigns = campaigns_(byMonth[month], byMonth[prevMonth], metaResultField_(w, type));
 
     const ai = claudeAnalysis_(c, cur, prev);
-    if (ai) { cur.insights = ai.insights; cur.summary = ai.summary; cur.aiModel = CLAUDE_MODEL; }
+    cur.improvements = [];
+    if (ai) { cur.insights = ai.insights; cur.summary = ai.summary; cur.improvements = ai.improvements; cur.aiModel = CLAUDE_MODEL; }
     if (!prevSaved) put_('reports', prev.id, [clientId], prev);
     put_('reports', cur.id, [clientId], cur);
     return { report: cur, prev: prev, ai: !!ai, createdPrev: !prevSaved };
   },
 });
+
+// Campanhas do mês (Meta e Google) com os números do mês anterior para comparação.
+function campaigns_(cur, prev, resField) {
+  const n = function (v) { return Number(v) || 0; };
+  const r2 = function (v) { return Math.round(v * 100) / 100; };
+  const meta = function (r) {
+    const imps = n(r.impressions), clicks = n(r.link_clicks), res = n(r[resField]);
+    return { plat: 'meta', name: String(r.campaign || 'Sem nome'), objective: String(r.campaign_objective || ''), inv: r2(n(r.spend)), imps: imps,
+      clicks: clicks, res: Math.round(res), value: r2(n(r.action_values_omni_purchase)), freq: n(r.reach) ? r2(imps / n(r.reach)) : null };
+  };
+  const google = function (r) {
+    return { plat: 'google', name: String(r.campaign || 'Sem nome'), objective: String(r.advertising_channel_type || ''), inv: r2(n(r.spend)),
+      imps: n(r.impressions), clicks: n(r.clicks), res: Math.round(n(r.conversions)), value: r2(n(r.conversion_value)),
+      is: r.search_impression_share == null ? null : n(r.search_impression_share),
+      isBudget: r.search_budget_lost_impression_share == null ? null : n(r.search_budget_lost_impression_share),
+      isRank: r.search_rank_lost_impression_share == null ? null : n(r.search_rank_lost_impression_share) };
+  };
+  const list = (cur.metaCampaigns || []).map(meta).concat((cur.googleCampaigns || []).map(google));
+  const before = ((prev && prev.metaCampaigns) || []).map(meta).concat(((prev && prev.googleCampaigns) || []).map(google));
+  return list.filter(function (c) { return c.inv > 0; }).map(function (c) {
+    const p = before.filter(function (b) { return b.plat === c.plat && b.name === c.name; })[0];
+    if (p) c.prev = { inv: p.inv, res: p.res, clicks: p.clicks, imps: p.imps };
+    return c;
+  }).sort(function (a, b) { return b.inv - a.inv; });
+}
 
 function shiftMonth_(m, delta) {
   const p = m.split('-').map(Number);
@@ -353,6 +380,12 @@ function claudeAnalysis_(client, cur, prev) {
     meta_faturamento: Number(cur.meta) || null,
     mes_atual: { mes: cur.month, indicadores: kpis_(cur) },
     mes_anterior: { mes: prev.month, indicadores: kpis_(prev) },
+    campanhas_mes_atual: (cur.campaigns || []).map(function (c) {
+      return { plataforma: c.plat === 'meta' ? 'Meta Ads' : 'Google Ads', campanha: c.name, objetivo: c.objective, investimento: c.inv,
+        impressoes: c.imps, cliques: c.clicks, resultados: c.res, valor_conversoes: c.value || undefined, frequencia: c.freq || undefined,
+        parcela_impressoes: c.is == null ? undefined : c.is, perda_por_orcamento: c.isBudget == null ? undefined : c.isBudget,
+        perda_por_classificacao: c.isRank == null ? undefined : c.isRank, mes_anterior: c.prev };
+    }),
   };
   const schema = {
     type: 'object',
@@ -367,8 +400,23 @@ function claudeAnalysis_(client, cur, prev) {
           additionalProperties: false,
         },
       },
+      improvements: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            prioridade: { type: 'string', enum: ['alta', 'media', 'baixa'] },
+            plataforma: { type: 'string', enum: ['Meta Ads', 'Google Ads', 'Geral'] },
+            campanha: { type: 'string' },
+            acao: { type: 'string' },
+            motivo: { type: 'string' },
+          },
+          required: ['prioridade', 'plataforma', 'campanha', 'acao', 'motivo'],
+          additionalProperties: false,
+        },
+      },
     },
-    required: ['summary', 'insights'],
+    required: ['summary', 'insights', 'improvements'],
     additionalProperties: false,
   };
   const system = 'Você é um analista sênior de mídia paga da V4 Company e escreve a análise da one page mensal de resultados de um cliente. ' +
@@ -380,7 +428,12 @@ function claudeAnalysis_(client, cur, prev) {
     '- insights: de 4 a 6 itens. Use tipo "pos" para destaques do período e "opp" para pontos de atenção ou oportunidades. ' +
     'Cubra a evolução das métricas principais (investimento, resultados, CPL ou CPA, CPC, CTR e, se houver, faturamento e ROAS), ' +
     'o criativo de melhor desempenho e o motivo, e sugestões concretas de melhoria para o próximo mês. ' +
-    'Cada title tem no máximo 70 caracteres e cada text no máximo 2 frases, citando os números.\n\n' +
+    'Cada title tem no máximo 70 caracteres e cada text no máximo 2 frases, citando os números.\n' +
+    '- improvements: de 3 a 8 ações práticas para o gestor de tráfego aplicar nas campanhas no próximo mês, da mais para a menos importante. ' +
+    'Avalie cada campanha pelo seu objetivo: campanhas de reconhecimento, alcance ou tráfego não geram conversões por definição, então julgue-as por CPM, CPC, CTR e frequência. ' +
+    'Exemplos de ação: escalar verba de quem tem custo por resultado abaixo da média, reduzir ou pausar quem gasta sem resultado, renovar criativos com frequência acima de 3,5, ' +
+    'ajustar público, melhorar anúncios e palavras-chave quando a perda de impressões por classificação for alta, aumentar orçamento quando a perda por orçamento for alta. ' +
+    'Em "campanha" use o nome exato da campanha (ou "Conta inteira" para ações gerais e plataforma "Geral"); "acao" é uma frase imperativa curta; "motivo" cita os números que justificam.\n\n' +
     'Dados:\n' + JSON.stringify(dados, null, 1);
 
   const res = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
@@ -407,7 +460,13 @@ function claudeAnalysis_(client, cur, prev) {
   const text = (body.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('');
   let out;
   try { out = JSON.parse(text); } catch (e) { throw codeErr_('IA: resposta em formato inesperado.', 'ai'); }
-  return { summary: String(out.summary || ''), insights: (out.insights || []).slice(0, 6) };
+  return {
+    summary: String(out.summary || ''),
+    insights: (out.insights || []).slice(0, 6),
+    improvements: (out.improvements || []).slice(0, 10).map(function (i) {
+      return { prioridade: i.prioridade, plataforma: i.plataforma, campanha: i.campanha, acao: i.acao, motivo: i.motivo, done: false };
+    }),
+  };
 }
 
 /** Rode no editor para autorizar e testar a chave do Claude (ANTHROPIC_API_KEY). */
@@ -422,9 +481,11 @@ function metaResultField_(w, type) {
   return META_RESULTS[w.metaResult] || (type === 'inside-sales' ? META_RESULTS.lead : META_RESULTS.purchase);
 }
 
-function windsorRequests_(w, type) {
+function windsorRequests_(w, type, withCampaigns) {
   const res = metaResultField_(w, type);
   const reqs = [];
+  if (withCampaigns && w.meta) reqs.push({ key: 'metaCampaigns', connector: 'facebook', account: w.meta, fields: ['campaign', 'campaign_objective', 'spend', 'impressions', 'reach', 'link_clicks', res, 'action_values_omni_purchase'] });
+  if (withCampaigns && w.google) reqs.push({ key: 'googleCampaigns', connector: 'google_ads', account: w.google, fields: ['campaign', 'advertising_channel_type', 'spend', 'clicks', 'impressions', 'conversions', 'conversion_value', 'search_impression_share', 'search_budget_lost_impression_share', 'search_rank_lost_impression_share'] });
   if (w.meta) {
     reqs.push({ key: 'meta', connector: 'facebook', account: w.meta, fields: ['account_id', 'spend', 'link_clicks', 'impressions', res, 'action_values_omni_purchase'] });
     reqs.push({ key: 'metaAds', connector: 'facebook', account: w.meta, fields: ['ad_name', 'spend', res, 'action_values_omni_purchase', 'thumbnail_url'] });

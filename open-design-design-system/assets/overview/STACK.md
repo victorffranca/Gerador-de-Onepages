@@ -1,0 +1,9 @@
+- **HTML5 semântico** — estrutura da página com `<header>`, `<section>`, `<footer>`, `<details>`/`<summary>` para FAQ e seletor de idioma
+- **CSS puro (custom properties)** — todo o design system em `assets/css/styles.css`: tokens de cor, tipografia, layout, componentes e animações, sem framework de utilitários
+- **Astro** — gerador de site estático usado para construir a landing page original (mencionado no FAQ)
+- **Google Fonts** — fontes Inter, Inter Tight, Playfair Display e JetBrains Mono, declaradas via `@font-face` em `assets/css/fonts.css`
+- **JavaScript (vanilla ES2022)** — todas as interações sem bibliotecas: IntersectionObserver, MutationObserver, fetch, localStorage
+- **IntersectionObserver API** — usada para o lazy-loading de imagens/vídeos e para o scroll-reveal das seções (`data-reveal`)
+- **GitHub REST API** — busca ao vivo de estrelas, versão de release e contribuidores para preencher badges e a marquee de contribuidores
+- **Cloudflare Web Analytics (beacon)** — script de telemetria `beacon.min.js` presente no original (não reincluído no design system extraído)
+- **Schema.org / JSON-LD** — dados estruturados (WebSite, Organization, SoftwareApplication, FAQPage) presentes no original para SEO
