@@ -51,7 +51,7 @@ export function metrics(r) {
 
 // ── LAYOUT DA ONE PAGE (design system V4 one-page) ────────────
 const brl = n => fmt(n).replace(/\s/g, '');
-const V4_LOGO = '<span class="op-logo"><svg viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="3" fill="#E30613"/><text x="14" y="22.5" text-anchor="middle" font-family="Inter,Arial,sans-serif" font-weight="900" font-size="22" fill="#fff">4</text></svg>COMPANY</span>';
+const V4_LOGO = '<span class="op-logo"><svg viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="3" fill="#E30613"/><text x="14" y="22.5" text-anchor="middle" font-family="Montserrat,Arial,sans-serif" font-weight="900" font-size="22" fill="#fff">4</text></svg>COMPANY</span>';
 
 function period(m) {
   if (!m) return '—';
@@ -418,7 +418,7 @@ export function campaignImprovements(r) {
 
 // ── ESTILO DA ONE PAGE (usado no app e no HTML baixado) ───────
 export const REPORT_CSS = `
-.report-wrap{--op-ink:#111318;--op-text:#2B2F36;--op-soft:#8A9099;--op-line:#E4E6EA;--op-line2:#EEF0F2;--op-red:#E30613;--op-good:#16A34A;--op-bad:#DC2626;font-family:'Inter',Arial,sans-serif;background:#EEF0F3;color:var(--op-text);font-size:13px;line-height:1.45;padding:28px 16px 48px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.report-wrap{--op-ink:#111318;--op-text:#2B2F36;--op-soft:#8A9099;--op-line:#E4E6EA;--op-line2:#EEF0F2;--op-red:#E30613;--op-good:#16A34A;--op-bad:#DC2626;font-family:'Montserrat',Arial,sans-serif;background:#EEF0F3;color:var(--op-text);font-size:13px;line-height:1.45;padding:28px 16px 48px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .report-wrap *{margin:0;padding:0;box-sizing:border-box}
 .op-page{background:#fff;max-width:860px;margin:0 auto;padding:40px 44px 32px;border-radius:6px;box-shadow:0 2px 18px rgba(17,19,24,.07)}
 .op-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;padding-bottom:16px;border-bottom:2px solid var(--op-red);margin-bottom:18px}
@@ -520,7 +520,7 @@ export const REPORT_CSS = `
 export function downloadReport(r, client, prev) {
   const title = 'One Page — ' + (client.name || '') + ' — ' + formatMonth(r.month);
   const html = '<!DOCTYPE html>\n<html lang="pt-BR">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width,initial-scale=1.0">\n<title>' + esc(title) + '</title>\n' +
-    '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">\n' +
+    '<link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">\n' +
     '<style>body{margin:0;background:#EEF0F3}' + REPORT_CSS + '</style>\n</head>\n<body>\n<div class="report-wrap">\n' + renderReport(r, client, prev) + '\n</div>\n</body>\n</html>';
   const url = URL.createObjectURL(new Blob([html], { type: 'text/html;charset=utf-8' }));
   const a = document.createElement('a');

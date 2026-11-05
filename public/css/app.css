@@ -1,5 +1,5 @@
-/* Design system "Open Design" (pasta designsystem/): papel pergaminho com textura, títulos em Inter Tight
-   com itálicos em Playfair Display, coral como destaque, cartões "bone" e botões em pílula.
+/* Design system "Open Design" (pasta designsystem/): papel pergaminho com textura, títulos em Montserrat
+   com itálicos em Montserrat, coral como destaque, cartões "bone" e botões em pílula.
    A one page do cliente segue o padrão V4 próprio (REPORT_CSS em report.js). */
 :root {
   --ink: #15140f;
@@ -30,13 +30,13 @@
   --surface: #f7f1de;
   --surface2: #ece4cf;
   --shadow: 0 30px 60px -30px rgba(21, 20, 15, .18), inset 0 0 0 1px rgba(21, 20, 15, .06);
-  --serif: "Playfair Display", "Times New Roman", serif;
-  --sans: "Inter Tight", "Inter", system-ui, sans-serif;
-  --body: "Inter", system-ui, sans-serif;
-  --mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  --serif: "Montserrat", system-ui, sans-serif;
+  --sans: "Montserrat", system-ui, sans-serif;
+  --body: "Montserrat", system-ui, sans-serif;
+  --mono: "Montserrat", system-ui, sans-serif;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:var(--body); background:var(--paper); color:var(--text); min-height:100vh; font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased; }
+body { font-variant-numeric:tabular-nums; font-family:var(--body); background:var(--paper); color:var(--text); min-height:100vh; font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased; }
 /* textura de papel do design system (fica por cima, sem capturar cliques) */
 body::before { content:""; position:fixed; inset:0; pointer-events:none; z-index:1; mix-blend-mode:multiply; opacity:.92;
   background-image:radial-gradient(circle at 12% 18%, rgba(106,92,56,.07) 0, transparent 28%), radial-gradient(circle at 88% 72%, rgba(106,92,56,.06) 0, transparent 32%),
