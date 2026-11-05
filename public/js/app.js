@@ -96,10 +96,108 @@ async function onAuth(user, err) {
     await api.requestAccess(user).catch(console.error);
     return renderNoAccess();
   }
-  api.touchProfile(user).catch(console.error);
+  if (!api.isAppsScript) api.touchProfile(user).catch(console.error);
   S.ownerFilter = 'mine'; S.search = ''; S.dirty = false;
+  root.innerHTML = '<div class="boot">Carregando seus clientes…</div>';
+  try { await loadAll(false); } catch (e) { console.error(e); toast(friendly(e), 'err'); }
   await go('clients');
-  if (isAdmin()) refreshPendingCount();
+  preloadIntegrations();
+}
+
+// ── DADOS EM MEMÓRIA ──────────────────────────────────────────
+// Tudo (clientes, one pages e, para admins, acessos) é carregado de uma vez; a navegação usa a memória
+// e as gravações atualizam a memória na hora. O servidor é reconsultado em segundo plano.
+S.data = { clients: [], reports: {}, profiles: [], allowed: [], requests: [], at: 0 };
+
+async function loadAll(force) {
+  const d = api.bootstrap ? await api.bootstrap(force) : await compositeLoad();
+  S.data = { clients: d.clients || [], reports: d.reports || {}, profiles: d.profiles || [], allowed: d.allowed || [], requests: d.requests || [], at: Date.now() };
+  S.pendingCount = isAdmin() ? pendingOnly(S.data.requests, S.data.allowed).length : 0;
+}
+
+// Demonstração/Firebase: monta a mesma carga a partir das chamadas individuais.
+async function compositeLoad() {
+  const admin = isAdmin();
+  const clients = await api.listClients(admin ? null : S.user.uid);
+  const reports = {};
+  await Promise.all(clients.map(async c => { reports[c.id] = await api.listReports(c.id); }));
+  const out = { clients, reports };
+  if (admin) [out.profiles, out.allowed, out.requests] = await Promise.all([api.listProfiles(), api.listAllowed(), api.listRequests()]);
+  return out;
+}
+
+// ── GRAVAÇÃO EM SEGUNDO PLANO ─────────────────────────────────
+// A tela atualiza na hora; o servidor recebe as gravações em fila (uma de cada vez, na ordem), então um
+// cliente novo sempre chega antes das one pages dele. Se uma gravação falhar, avisa e recarrega do servidor.
+const newId = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2, 12));
+S.pendingWrites = 0;
+let writeQueue = Promise.resolve();
+
+function updateSaving() {
+  const el = $('#saving');
+  if (el) el.hidden = !S.pendingWrites;
+}
+
+function queueWrite(fn) {
+  S.pendingWrites++;
+  updateSaving();
+  writeQueue = writeQueue.then(fn).catch(e => {
+    console.error(e);
+    toast('Não foi possível salvar: ' + friendly(e) + ' Os dados foram recarregados do servidor.', 'err');
+    refreshData();
+  }).finally(() => { S.pendingWrites--; updateSaving(); });
+  return writeQueue;
+}
+
+let refreshing = null;
+function refreshData() {
+  if (refreshing) return refreshing;
+  refreshing = loadAll(true).then(() => {
+    const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('#root input, #root textarea');
+    if (['clients', 'client', 'admin'].includes(S.view) && !$('#modal').innerHTML && !typing) { syncViewData(); render(); }
+    else { const tb = $('.topbar'); if (tb) tb.outerHTML = topbar(); }
+  }).catch(console.error).finally(() => { refreshing = null; });
+  return refreshing;
+}
+
+function syncViewData() {
+  const f = S.ownerFilter;
+  S.clients = S.data.clients.filter(c => f === 'all' || c.ownerUid === (f === 'mine' ? S.user.uid : f))
+    .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'));
+  S.profiles = [...S.data.profiles].sort((a, b) => (a.email || '').localeCompare(b.email || ''));
+  if (S.client) {
+    S.client = S.data.clients.find(c => c.id === S.client.id) || S.client;
+    S.reports = S.data.reports[S.client.id] || [];
+  }
+  S.admin = { allowed: S.data.allowed, requests: pendingOnly(S.data.requests, S.data.allowed), profiles: S.data.profiles, allClients: S.data.clients };
+  S.pendingCount = isAdmin() ? S.admin.requests.length : 0;
+}
+
+function upsertClientLocal(c) {
+  const i = S.data.clients.findIndex(x => x.id === c.id);
+  if (i >= 0) S.data.clients[i] = { ...S.data.clients[i], ...c };
+  else { S.data.clients.push(c); S.data.reports[c.id] = S.data.reports[c.id] || []; }
+  if (S.client?.id === c.id) S.client = S.data.clients.find(x => x.id === c.id);
+}
+
+function upsertReportLocal(clientId, rep) {
+  const list = (S.data.reports[clientId] || []).filter(r => r.id !== rep.id).concat(rep);
+  S.data.reports[clientId] = list;
+  if (S.client?.id === clientId) S.reports = list;
+}
+
+function removeReportLocal(clientId, id) {
+  S.data.reports[clientId] = (S.data.reports[clientId] || []).filter(r => r.id !== id);
+  if (S.client?.id === clientId) S.reports = S.data.reports[clientId];
+}
+
+// Deixa prontas as informações usadas nos modais (contas do Windsor, status da IA).
+function preloadIntegrations() {
+  if (!api.isAppsScript) return;
+  // Em paralelo (a lista de contas só é usada se o Windsor estiver configurado).
+  api.windsorStatus().then(s => { S.windsorStatus = s; }).catch(console.error);
+  api.windsorAccounts().then(a => { S.windsorAccounts = a; }).catch(() => {});
+  api.aiStatus().then(s => { S.aiConfigured = s.configured; }).catch(console.error);
 }
 
 function renderLogin() {
@@ -129,14 +227,6 @@ function renderNoAccess() {
     '<button class="btn-secondary" data-act="recheck">Verificar novamente</button>' + (api.canSignOut ? ' <button class="btn-primary" data-act="logout">Sair</button>' : ''));
 }
 
-async function refreshPendingCount() {
-  try {
-    const [requests, allowed] = await Promise.all([api.listRequests(), api.listAllowed()]);
-    S.pendingCount = pendingOnly(requests, allowed).length;
-    const tb = $('.topbar');
-    if (tb) tb.outerHTML = topbar();
-  } catch (e) { console.error(e); }
-}
 const pendingOnly = (requests, allowed) =>
   requests.filter(q => !isMaster(q.email) && !allowed.some(a => a.email === q.email && a.active !== false));
 
@@ -147,16 +237,15 @@ async function go(view, params = {}) {
   closeModal();
   S.view = view;
   if (params.client) S.client = params.client;
-  try {
-    if (view === 'clients') await loadClients();
-    if (view === 'client') S.reports = await api.listReports(S.client.id);
-    if (view === 'admin') await loadAdmin();
-  } catch (e) { console.error(e); toast(friendly(e), 'err'); }
+  syncViewData();
   render();
   window.scrollTo(0, 0);
+  // Mostra na hora o que está em memória e atualiza em segundo plano se os dados tiverem mais de 30 s.
+  if (['clients', 'client', 'admin'].includes(view) && Date.now() - S.data.at > 30000) refreshData();
 }
 
 function show(view) {
+  if (view === 'report') S.reportTab = 'page'; // sempre abre na one page, não na aba de melhorias
   S.view = view;
   render();
   window.scrollTo(0, 0);
@@ -179,21 +268,12 @@ function topbar() {
       <button class="nav-link ${inClients ? 'active' : ''}" data-act="nav" data-v="clients">Clientes</button>
       ${isAdmin() ? `<button class="nav-link ${S.view === 'admin' ? 'active' : ''}" data-act="nav" data-v="admin">Acessos${S.pendingCount ? `<span class="count">${S.pendingCount}</span>` : ''}</button>` : ''}
     </nav>
+    <span id="saving" class="saving" ${S.pendingWrites ? '' : 'hidden'}>Salvando…</span>
     <div class="topbar-user">${avatar(S.user)}<span class="who">${esc(S.user.email)}</span>${role}${api.canSignOut ? '<button class="btn-ghost-dark" data-act="logout">Sair</button>' : ''}</div>
   </header>`;
 }
 
 // ── CLIENTES ──────────────────────────────────────────────────
-async function loadClients() {
-  const f = S.ownerFilter;
-  const [clients, profiles] = await Promise.all([
-    api.listClients(f === 'all' ? null : f === 'mine' ? S.user.uid : f),
-    isAdmin() ? api.listProfiles() : [],
-  ]);
-  S.clients = clients.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'));
-  S.profiles = profiles.sort((a, b) => (a.email || '').localeCompare(b.email || ''));
-}
-
 function viewClients() {
   const ownerOpts = [['mine', 'Meus clientes'], ['all', 'Todos os clientes'],
     ...S.profiles.filter(p => p.id !== S.user.uid).map(p => [p.id, p.name && p.name !== p.email ? `${p.name} (${p.email})` : p.email])];
@@ -277,11 +357,15 @@ const W_SLOTS = [
 async function loadWindsorFields(w, type, refresh) {
   const box = $('#windsor-fields');
   if (!box) return;
-  box.className = 'windsor-msg';
-  box.textContent = 'Carregando contas do Windsor…';
+  // Status e contas ficam em memória (carregados em segundo plano ao abrir o app): o modal abre sem espera.
+  if (!S.windsorStatus || !S.windsorAccounts || refresh) {
+    box.className = 'windsor-msg';
+    box.textContent = 'Carregando contas do Windsor…';
+  }
   try {
-    const status = await api.windsorStatus();
-    if (!status.configured) {
+    if (!S.windsorStatus) S.windsorStatus = await api.windsorStatus();
+    if (!S.windsorStatus.configured) {
+      box.className = 'windsor-msg';
       box.innerHTML = isAdmin()
         ? 'Para vincular contas, configure a chave de API do Windsor no Apps Script (veja o LEIA-ME).'
         : 'A integração com o Windsor ainda não foi configurada pelo administrador.';
@@ -289,6 +373,7 @@ async function loadWindsorFields(w, type, refresh) {
     }
     if (!S.windsorAccounts || refresh) S.windsorAccounts = await api.windsorAccounts(refresh);
   } catch (e) {
+    box.className = 'windsor-msg';
     if ($('#windsor-fields')) box.innerHTML = `Não foi possível carregar as contas do Windsor: ${esc(friendly(e))}`;
     return;
   }
@@ -359,22 +444,25 @@ async function saveClientFromModal() {
   const data = { name, type: fd.type, agency: fd.agency.trim(), meta: fd.meta === '' ? '' : Number(fd.meta), notes: fd.notes.trim(), updatedAt: Date.now() };
   if (!id) Object.assign(data, { ownerUid: S.user.uid, ownerEmail: S.user.email, ownerName: S.user.name, createdAt: Date.now() });
   if ($('#client-form [name=wMetaResult]')) data.windsor = { meta: fd.wMeta || '', google: fd.wGoogle || '', ga4: fd.wGa4 || '', metaResult: fd.wMetaResult || '' };
-  const saved = await api.saveClient(id ? { id, ...data } : data);
+  const cid = id || newId();
+  const payload = { id: cid, ...data };
+  upsertClientLocal(payload);
   closeModal();
   toast(id ? 'Cliente atualizado.' : 'Cliente cadastrado.');
-  if (!id) return go('client', { client: saved });
-  const merged = { ...findClient(id), ...saved };
-  S.clients = S.clients.map(c => (c.id === id ? merged : c));
-  if (S.client?.id === id) S.client = merged;
+  queueWrite(() => api.saveClient(payload));
+  if (!id) return go('client', { client: S.data.clients.find(c => c.id === cid) });
+  syncViewData();
   render();
 }
 
 async function deleteClient(id) {
   const c = findClient(id);
   if (!confirm(`Excluir o cliente "${c.name}" e todas as one pages dele? Essa ação não pode ser desfeita.`)) return;
-  await api.deleteClient(id);
+  S.data.clients = S.data.clients.filter(x => x.id !== id);
+  delete S.data.reports[id];
   toast('Cliente excluído.');
   S.client = null;
+  queueWrite(() => api.deleteClient(id));
   go('clients');
 }
 
@@ -427,20 +515,23 @@ function evolution(reps) {
 async function deleteReport(id) {
   const r = findReport(id);
   if (!confirm(`Excluir a one page de ${formatMonth(r.month)}? Essa ação não pode ser desfeita.`)) return;
-  await api.deleteReport(S.client.id, id);
-  S.reports = S.reports.filter(x => x.id !== id);
-  await syncLastReport();
+  const cid = S.client.id;
+  removeReportLocal(cid, id);
+  syncLastReport();
   toast('One page excluída.');
+  queueWrite(() => api.deleteReport(cid, id));
   render();
 }
 
 // Mantém no cadastro do cliente um resumo da one page mais recente (usado nos cards).
-async function syncLastReport() {
+// No Apps Script o servidor já faz isso ao gravar; aqui só atualiza a memória.
+function syncLastReport() {
   const latest = [...S.reports].sort(byMonthDesc)[0];
   const lastReport = latest ? { month: latest.month, revenue: metrics(latest).revenue, type: latest.type } : null;
   if (JSON.stringify(lastReport) === JSON.stringify(S.client.lastReport || null)) return;
-  await api.saveClient({ id: S.client.id, lastReport, updatedAt: Date.now() });
-  S.client.lastReport = lastReport;
+  const cid = S.client.id;
+  if (!api.isAppsScript) queueWrite(() => api.saveClient({ id: cid, lastReport, updatedAt: Date.now() }));
+  upsertClientLocal({ id: cid, lastReport });
 }
 
 // ── EDITOR DE ONE PAGE ────────────────────────────────────────
@@ -661,11 +752,17 @@ async function runAiReport() {
   try {
     const res = await api.aiReport(S.client.id, month);
     let report = res.report;
-    if (!res.ai) report = await api.saveReport(S.client.id, { ...report, insights: suggestInsights(report, res.prev), improvements: campaignImprovements(report) });
+    if (!res.ai) {
+      // Sem a IA, os insights e as melhorias vêm das regras do app: grava em segundo plano.
+      const cid = S.client.id;
+      report = { ...report, insights: suggestInsights(report, res.prev), improvements: campaignImprovements(report) };
+      queueWrite(() => api.saveReport(cid, report));
+    }
     S.reportTab = 'page';
-    S.reports = await api.listReports(S.client.id);
-    S.report = S.reports.find(x => x.id === report.id) || report;
-    await syncLastReport();
+    upsertReportLocal(S.client.id, res.prev);
+    upsertReportLocal(S.client.id, report);
+    S.report = report;
+    syncLastReport();
     closeModal();
     show('report');
     toast(`Relatório de ${formatMonth(month)} gerado${res.ai ? ' com IA' : ''}, comparado com ${formatMonth(res.prev.month)}. Use "Editar dados" para ajustar.`);
@@ -734,20 +831,24 @@ async function saveReport(then) {
   if (dup && !confirm(`Já existe uma one page de ${formatMonth(r.month)}. Substituir pela atual?`)) return;
   const now = Date.now();
   Object.assign(r, { updatedAt: now, updatedBy: S.user.email, createdAt: r.createdAt || now });
-  $$('[data-act=report-save]').forEach(b => { b.disabled = true; });
-  try {
-    const saved = await api.saveReport(S.client.id, r);
-    if (dup) await api.deleteReport(S.client.id, dup.id);
-    S.reports = S.reports.filter(x => x.id !== saved.id && x.id !== dup?.id).concat(saved);
-    S.report = saved;
-    S.dirty = false;
-    await syncLastReport();
-    toast('One page salva.');
-    if (then === 'view') show('report');
-    else refreshEditor();
-  } finally {
-    $$('[data-act=report-save]').forEach(b => { b.disabled = false; });
-  }
+  // One page nova num mês que já existe: grava por cima da existente (uma chamada em vez de duas).
+  const replaceDup = dup && !r.id;
+  r.id = r.id || (replaceDup ? dup.id : newId());
+  const cid = S.client.id;
+  r.clientId = cid;
+  const dupToDelete = dup && !replaceDup ? dup : null;
+  if (dupToDelete) removeReportLocal(cid, dupToDelete.id);
+  upsertReportLocal(cid, r);
+  S.report = r;
+  S.dirty = false;
+  syncLastReport();
+  queueWrite(async () => {
+    await api.saveReport(cid, r);
+    if (dupToDelete) await api.deleteReport(cid, dupToDelete.id);
+  });
+  toast('One page salva.');
+  if (then === 'view') show('report');
+  else refreshEditor();
 }
 
 // ── VISUALIZAÇÃO DA ONE PAGE ──────────────────────────────────
@@ -821,10 +922,10 @@ function improvementsView(r) {
 }
 
 // ── ACESSOS (mestre / admin) ──────────────────────────────────
-async function loadAdmin() {
-  const [allowed, requests, profiles, allClients] = await Promise.all([api.listAllowed(), api.listRequests(), api.listProfiles(), api.listClients(null)]);
-  S.admin = { allowed, requests: pendingOnly(requests, allowed), profiles, allClients };
-  S.pendingCount = S.admin.requests.length;
+function setAllowedLocal(email, data) {
+  const i = S.data.allowed.findIndex(a => a.email === email);
+  if (i >= 0) S.data.allowed[i] = { ...S.data.allowed[i], ...data };
+  else S.data.allowed.push({ id: email, email, ...data });
 }
 
 function viewAdmin() {
@@ -876,14 +977,17 @@ async function grantAccess(email, role) {
   email = lower(email);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('Informe um e-mail válido.', 'err'); return; }
   if (isMaster(email)) { toast('Este e-mail já tem acesso mestre.', 'err'); return; }
-  await api.setAllowed(email, { role: role || 'user', active: true, grantedBy: S.user.email, grantedAt: Date.now() });
-  await api.removeRequest(email).catch(() => {});
+  const data = { role: role || 'user', active: true, grantedBy: S.user.email, grantedAt: Date.now() };
+  setAllowedLocal(email, data);
+  S.data.requests = S.data.requests.filter(q => q.email !== email);
+  queueWrite(async () => { await api.setAllowed(email, data); await api.removeRequest(email).catch(() => {}); });
   toast(`Acesso liberado para ${email}.`);
   go('admin');
 }
 
 async function updateAllowed(email, data, msg, reload = true) {
-  await api.setAllowed(email, data);
+  setAllowedLocal(email, data);
+  queueWrite(() => api.setAllowed(email, data));
   toast(msg);
   if (reload) go('admin');
 }
@@ -936,7 +1040,13 @@ const actions = {
   },
 
   approve: el => safe(() => grantAccess(el.dataset.email, 'user')),
-  reject: el => safe(async () => { await api.removeRequest(el.dataset.email); toast('Solicitação recusada.'); go('admin'); }),
+  reject: el => safe(async () => {
+    const email = el.dataset.email;
+    S.data.requests = S.data.requests.filter(q => q.email !== email);
+    queueWrite(() => api.removeRequest(email));
+    toast('Solicitação recusada.');
+    go('admin');
+  }),
   'toggle-active': el => safe(() => {
     const a = S.admin.allowed.find(x => x.email === el.dataset.email);
     const active = a.active === false;
@@ -944,7 +1054,9 @@ const actions = {
   }),
   revoke: el => safe(async () => {
     if (!confirm(`Remover o acesso de ${el.dataset.email}? Os clientes dessa pessoa continuam salvos e visíveis para o acesso mestre.`)) return;
-    await api.removeAllowed(el.dataset.email);
+    const email = el.dataset.email;
+    S.data.allowed = S.data.allowed.filter(a => a.email !== email);
+    queueWrite(() => api.removeAllowed(email));
     toast('Acesso removido.');
     go('admin');
   }),
@@ -999,11 +1111,13 @@ document.addEventListener('change', e => {
   if (el.dataset.change === 'owner') { S.ownerFilter = el.value; go('clients'); }
   if (el.dataset.change === 'role') safe(() => updateAllowed(el.dataset.email, { role: el.value }, 'Papel atualizado.', false));
   if (el.dataset.change === 'imp-done') safe(async () => {
+    // Marca na hora e grava em segundo plano (se falhar, o app avisa e recarrega do servidor).
     const list = S.report.improvements.map((i, idx) => (idx === Number(el.dataset.i) ? { ...i, done: el.checked } : i));
-    const saved = await api.saveReport(S.client.id, { ...S.report, improvements: list });
-    S.report = { ...S.report, ...saved };
-    S.reports = S.reports.map(r => (r.id === S.report.id ? S.report : r));
+    S.report = { ...S.report, improvements: list };
+    upsertReportLocal(S.client.id, S.report);
     render();
+    const cid = S.client.id, next = S.report;
+    queueWrite(() => api.saveReport(cid, next));
   });
 });
 
@@ -1012,5 +1126,5 @@ document.addEventListener('keydown', e => {
 });
 
 window.addEventListener('beforeunload', e => {
-  if (S.view === 'editor' && S.dirty) e.preventDefault();
+  if ((S.view === 'editor' && S.dirty) || S.pendingWrites) e.preventDefault();
 });

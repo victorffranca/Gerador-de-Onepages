@@ -73,8 +73,28 @@ function api(method, args) {
 }
 
 const METHODS = {
+  // Login + carga inicial numa chamada só: com acesso liberado já devolve clientes, one pages e acessos.
   whoami: function (ctx) {
-    return { user: { uid: ctx.email, email: ctx.email, name: ctx.email.split('@')[0], photo: '' }, access: ctx.access };
+    const out = { user: { uid: ctx.email, email: ctx.email, name: ctx.email.split('@')[0], photo: '' }, access: ctx.access };
+    if (ctx.access.allowed) {
+      const u = get_('users', ctx.email);
+      if (!u || Date.now() - (u.lastLogin || 0) > 6 * 3600 * 1000) METHODS.touchProfile(ctx);
+      out.data = METHODS.bootstrap(ctx);
+    }
+    return out;
+  },
+  bootstrap: function (ctx) {
+    const clients = METHODS.listClients(ctx, null);
+    const ids = {};
+    clients.forEach(function (c) { ids[c.id] = true; });
+    const reports = {};
+    rows_('reports').forEach(function (r) {
+      const cid = r.cols[0];
+      if (ids[cid]) (reports[cid] = reports[cid] || []).push(r.data);
+    });
+    const out = { clients: clients, reports: reports };
+    if (ctx.admin) { out.profiles = all_('users'); out.allowed = all_('allowedUsers'); out.requests = all_('accessRequests'); }
+    return out;
   },
   requestAccess: function (ctx) {
     if (ctx.access.allowed) return;
@@ -107,11 +127,14 @@ const METHODS = {
   saveClient: function (ctx, client) {
     const id = client.id;
     let data;
-    if (id) {
+    // O navegador cria o ID de um cliente novo (para abrir a tela sem esperar o servidor): se o ID ainda não
+    // existe, cria com ele e com o dono = quem chamou; se existe, só o dono (ou admin) pode alterar.
+    const existing = id ? get_('clients', id) : null;
+    if (existing) {
       const cur = ownClient_(ctx, id);
       data = Object.assign(cur, client, { id: id, ownerUid: cur.ownerUid, ownerEmail: cur.ownerEmail });
     } else {
-      data = Object.assign({}, client, { id: Utilities.getUuid(), ownerUid: ctx.email, ownerEmail: ctx.email });
+      data = Object.assign({}, client, { id: validId_(id) || Utilities.getUuid(), ownerUid: ctx.email, ownerEmail: ctx.email });
     }
     put_('clients', data.id, [data.ownerUid], data);
     return data;
@@ -120,7 +143,8 @@ const METHODS = {
     ownClient_(ctx, id);
     withLock_(function () {
       const sh = table_('reports');
-      rows_('reports').filter(function (r) { return r.cols[0] === id; }).reverse().forEach(function (r) { sh.deleteRow(r.row); });
+      rows_('reports', true).filter(function (r) { return r.cols[0] === id; }).reverse().forEach(function (r) { sh.deleteRow(r.row); });
+      invalidate_('reports');
     });
     remove_('clients', id);
   },
@@ -131,12 +155,13 @@ const METHODS = {
   },
   saveReport: function (ctx, clientId, report) {
     ownClient_(ctx, clientId);
-    const data = Object.assign({}, report, { id: report.id || Utilities.getUuid(), clientId: clientId });
+    const data = Object.assign({}, report, { id: validId_(report.id) || Utilities.getUuid(), clientId: clientId });
     if (report.id) {
       const cur = get_('reports', report.id);
       if (cur && cur.clientId !== clientId) throw denied_();
     }
     put_('reports', data.id, [clientId], data);
+    syncLastReport_(clientId);
     return data;
   },
   deleteReport: function (ctx, clientId, id) {
@@ -144,8 +169,22 @@ const METHODS = {
     const cur = get_('reports', id);
     if (cur && cur.clientId !== clientId) throw denied_();
     remove_('reports', id);
+    syncLastReport_(clientId);
   },
 };
+
+// Guarda no cliente o resumo da one page mais recente (usado nos cards da lista).
+function syncLastReport_(clientId) {
+  const c = get_('clients', clientId);
+  if (!c) return;
+  const latest = rows_('reports').filter(function (r) { return r.cols[0] === clientId && r.data.month; })
+    .map(function (r) { return r.data; })
+    .sort(function (a, b) { return b.month.localeCompare(a.month); })[0];
+  const lr = latest ? { month: latest.month, revenue: Number(latest.type === 'inside-sales' ? latest.isRevenue : latest.revenue) || 0, type: latest.type } : null;
+  if (JSON.stringify(lr) === JSON.stringify(c.lastReport || null)) return;
+  c.lastReport = lr;
+  put_('clients', clientId, [c.ownerUid], c);
+}
 
 // ── WINDSOR.AI ────────────────────────────────────────────────
 // A chave fica em Configurações do projeto → Propriedades do script → WINDSOR_API_KEY.
@@ -297,6 +336,7 @@ Object.assign(METHODS, {
     if (ai) { cur.insights = ai.insights; cur.summary = ai.summary; cur.improvements = ai.improvements; cur.aiModel = CLAUDE_MODEL; }
     if (!prevSaved) put_('reports', prev.id, [clientId], prev);
     put_('reports', cur.id, [clientId], cur);
+    syncLastReport_(clientId);
     return { report: cur, prev: prev, ai: !!ai, createdPrev: !prevSaved };
   },
 });
@@ -600,6 +640,7 @@ function ownClient_(ctx, id) {
   return c;
 }
 
+function validId_(id) { return typeof id === 'string' && /^[A-Za-z0-9_-]{6,64}$/.test(id) ? id : ''; }
 function denied_() { const e = new Error('Sem permissão para esta ação.'); e.code = 'permission-denied'; return e; }
 function err_(message, code) { return { error: message, code: code || '' }; }
 function lower_(s) { return String(s || '').trim().toLowerCase(); }
@@ -627,10 +668,31 @@ function table_(name) {
   return sh;
 }
 
-function rows_(name) {
+// Cache das abas: na mesma chamada (memo) e entre chamadas (CacheService, 1 min, abas até ~95 KB).
+// Toda escrita passa por put_/remove_, que relê a aba dentro do lock e invalida o cache.
+let memo_ = {};
+function readValues_(name) {
   const sh = table_(name), width = TABLES[name].length, n = sh.getLastRow();
-  if (n < 2) return [];
-  return sh.getRange(2, 1, n - 1, width).getValues().map(function (v, i) {
+  return n < 2 ? [] : sh.getRange(2, 1, n - 1, width).getValues();
+}
+function values_(name) {
+  if (memo_[name]) return memo_[name];
+  const cache = CacheService.getScriptCache();
+  const hit = cache.get('tbl:' + name);
+  if (hit) return (memo_[name] = JSON.parse(hit));
+  const vals = readValues_(name);
+  memo_[name] = vals;
+  try { const s = JSON.stringify(vals); if (s.length < 95000) cache.put('tbl:' + name, s, 60); } catch (e) { /* aba grande: só memo */ }
+  return vals;
+}
+function invalidate_(name) {
+  delete memo_[name];
+  CacheService.getScriptCache().remove('tbl:' + name);
+}
+
+function rows_(name, fresh) {
+  const width = TABLES[name].length;
+  return (fresh ? readValues_(name) : values_(name)).map(function (v, i) {
     let data = {};
     try { data = JSON.parse(v[width - 1] || '{}'); } catch (e) { /* linha corrompida */ }
     return { row: i + 2, key: String(v[0]), cols: v.slice(1, width - 1).map(String), data: data };
@@ -651,16 +713,18 @@ function put_(name, key, cols, data) {
   withLock_(function () {
     const sh = table_(name);
     const values = [[key].concat(cols, [JSON.stringify(data)])];
-    const r = rows_(name).filter(function (x) { return x.key === key; })[0];
+    const r = rows_(name, true).filter(function (x) { return x.key === key; })[0];
     if (r) sh.getRange(r.row, 1, 1, values[0].length).setValues(values);
     else sh.appendRow(values[0]);
+    invalidate_(name);
   });
 }
 
 function remove_(name, key) {
   withLock_(function () {
     const sh = table_(name);
-    rows_(name).filter(function (x) { return x.key === key; }).reverse().forEach(function (r) { sh.deleteRow(r.row); });
+    rows_(name, true).filter(function (x) { return x.key === key; }).reverse().forEach(function (r) { sh.deleteRow(r.row); });
+    invalidate_(name);
   });
 }
 

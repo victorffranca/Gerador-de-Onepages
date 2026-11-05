@@ -32,8 +32,14 @@ function createAppsScriptBackend() {
   };
   return {
     canSignOut: false,
+    isAppsScript: true,
     onAuth(cb) { listener = cb; refresh(); },
     async getAccess() { return me.access; },
+    // A primeira carga já veio junto com o login (whoami); as próximas vão ao servidor.
+    async bootstrap(force) {
+      if (!force && me && me.data) { const d = me.data; me.data = null; return d; }
+      return call('bootstrap');
+    },
     signIn: refresh,
     signOut: async () => {},
     requestAccess: () => call('requestAccess'),
