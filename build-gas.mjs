@@ -13,7 +13,7 @@ mkdirSync(out, { recursive: true });
 const toClassic = src => src
   .replace(/^import\s.*?;\s*$/gm, '')
   .replace(/^export\s+(?=(async\s+)?function|const|let|class)/gm, '');
-const js = ['js/config.js', 'js/db.js', 'js/report.js', 'js/app.js']
+const js = ['js/config.js', 'js/db.js', 'js/report.js', 'js/people.js', 'js/app.js']
   .map(f => `// ── ${f} ──\n` + toClassic(pub(f))).join('\n');
 
 // O Apps Script altera o JavaScript inline ao servir a página (quebrava a sintaxe), então o

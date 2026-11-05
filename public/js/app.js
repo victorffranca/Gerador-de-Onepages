@@ -1,5 +1,6 @@
 import { createBackend, isDemo, isMaster, isAutoDomain, lower } from './db.js';
 import { MASTER_EMAILS, AUTO_ALLOW_DOMAINS, DEFAULT_AGENCY } from './config.js';
+import { initPeople, ICON, applyProfile, profileChip, toggleMenu, refreshTopbar, openProfileModal, redrawPfPhoto, pickProfilePhoto, saveProfileFromModal, openFeedbackModal, drawFeedbackModal, redrawFeedbackFiles, updateFeedbackState, addFeedbackFiles, sendFeedback, loadFeedback, viewFeedback, loadFeedbackThumbs, zoomFeedbackFile, setFeedbackStatus } from './people.js';
 import { esc, fmt, fmtN, formatMonth, metrics, renderReport, suggestInsights, checkData, downloadReport, REPORT_CSS, PIPE_FIELDS, campaignImprovements, OBJECTIVES, isConversionCampaign } from './report.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -23,8 +24,8 @@ const GOOGLE_ICON = '<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden
 
 // ── HELPERS ───────────────────────────────────────────────────
 const isAdmin = () => ['master', 'admin'].includes(S.access?.role);
-const avatar = u => u.photo
-  ? `<img class="avatar" src="${esc(u.photo)}" alt="" referrerpolicy="no-referrer">`
+const avatar = u => (u.photo || u.googlePhoto)
+  ? `<img class="avatar" src="${esc(u.photo || u.googlePhoto)}" alt="" referrerpolicy="no-referrer">`
   : `<span class="avatar">${esc((u.name || u.email || '?').trim().charAt(0).toUpperCase())}</span>`;
 const dateBR = t => t ? new Date(t).toLocaleDateString('pt-BR') : '—';
 const ym = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
@@ -65,6 +66,7 @@ const stateCard = (icon, title, text, actions = '') =>
   `<div class="state-card"><div class="big">${icon}</div><h1>${title}</h1><p>${text}</p>${actions}</div>`;
 
 // ── BOOT / AUTH ───────────────────────────────────────────────
+initPeople({ S, get api() { return api; }, $, $$, toast, safe, friendly, queueWrite: (...a) => queueWrite(...a), avatar, go: (...a) => go(...a), closeModal: () => closeModal(), isDemo });
 document.head.insertAdjacentHTML('beforeend', `<style>${REPORT_CSS}</style>`);
 
 (async () => {
@@ -96,11 +98,14 @@ async function onAuth(user, err) {
     if (!S.access.blocked) await api.requestAccess(user).catch(console.error);
     return renderNoAccess();
   }
-  if (!api.isAppsScript) api.touchProfile(user).catch(console.error);
-  S.ownerFilter = 'mine'; S.search = ''; S.dirty = false;
+  if (!api.isAppsScript) await api.touchProfile(user).catch(console.error);
+  S.ownerFilter = 'mine'; S.search = ''; S.dirty = false; S.feedback = null;
+  try { S.profile = await api.getProfile(user); } catch (e) { console.error(e); S.profile = { email: user.email, name: user.name, cargo: '' }; }
+  applyProfile();
   root.innerHTML = '<div class="boot">Carregando seus clientes…</div>';
   try { await loadAll(false); } catch (e) { console.error(e); toast(friendly(e), 'err'); }
   await go('clients');
+  if (!S.profile.cargo) openProfileModal(true); // primeiro acesso: pergunta o cargo
   preloadIntegrations();
 }
 
@@ -113,6 +118,9 @@ async function loadAll(force) {
   const d = api.bootstrap ? await api.bootstrap(force) : await compositeLoad();
   S.data = { clients: d.clients || [], reports: d.reports || {}, profiles: d.profiles || [], allowed: d.allowed || [], requests: d.requests || [], at: Date.now() };
   S.pendingCount = isAdmin() ? pendingOnly(S.data.requests, S.data.allowed).length : 0;
+  if (d.feedbackNew != null) S.feedbackNew = d.feedbackNew;
+  else if (S.access?.role === 'master' && !api.isAppsScript) S.feedbackNew = (await api.listFeedback(S.user).catch(() => [])).filter(f => (f.status || 'novo') === 'novo').length;
+  applyProfile();
 }
 
 // Demonstração/Firebase: monta a mesma carga a partir das chamadas individuais.
@@ -244,6 +252,10 @@ async function go(view, params = {}) {
   window.scrollTo(0, 0);
   // Mostra na hora o que está em memória e atualiza em segundo plano se os dados tiverem mais de 30 s.
   if (['clients', 'client', 'admin'].includes(view) && Date.now() - S.data.at > 30000) refreshData();
+  if (view === 'feedback') {
+    if (!S.feedback) safe(async () => { await loadFeedback(); if (S.view === 'feedback') { render(); loadFeedbackThumbs(); } });
+    else loadFeedbackThumbs();
+  }
 }
 
 function show(view) {
@@ -254,7 +266,7 @@ function show(view) {
 }
 
 function render() {
-  const views = { clients: viewClients, client: viewClient, editor: viewEditor, report: viewReport, admin: viewAdmin };
+  const views = { clients: viewClients, client: viewClient, editor: viewEditor, report: viewReport, admin: viewAdmin, feedback: viewFeedback };
   root.innerHTML = topbar()
     + (isDemo ? '<div class="demo-banner no-print">Modo demonstração: dados salvos só neste navegador. Publicado no Google Apps Script, o app usa a conta Google de cada pessoa e a planilha de dados.</div>' : '')
     + views[S.view]();
@@ -263,7 +275,6 @@ function render() {
 
 function topbar() {
   const inClients = ['clients', 'client', 'editor', 'report'].includes(S.view);
-  const role = S.access.role === 'master' ? '<span class="role-badge">Mestre</span>' : S.access.role === 'admin' ? '<span class="role-badge admin">Admin</span>' : '';
   return `<header class="topbar no-print">
     <div class="brand" data-act="nav" data-v="clients">${BRAND}</div>
     <nav class="topnav">
@@ -271,7 +282,7 @@ function topbar() {
       ${isAdmin() ? `<button class="nav-link ${S.view === 'admin' ? 'active' : ''}" data-act="nav" data-v="admin">Acessos${S.pendingCount ? `<span class="count">${S.pendingCount}</span>` : ''}</button>` : ''}
     </nav>
     <span id="saving" class="saving" ${S.pendingWrites ? '' : 'hidden'}>Salvando…</span>
-    <div class="topbar-user">${avatar(S.user)}<span class="who">${esc(S.user.email)}</span>${role}${api.canSignOut ? '<button class="btn-ghost-dark" data-act="logout">Sair</button>' : ''}</div>
+    <div class="topbar-user">${profileChip()}</div>
   </header>`;
 }
 
@@ -950,7 +961,7 @@ function viewAdmin() {
     ...MASTER_EMAILS.map(e => ({ email: lower(e), role: 'master', fixed: true })),
     ...allowed.filter(a => !isMaster(a.email)).sort((a, b) => a.email.localeCompare(b.email)),
   ];
-  const person = (p, email) => `<div class="person">${avatar({ photo: p.photo, name: p.name || email })}<div>${esc(p.name || email)}<small>${esc(email)}</small></div></div>`;
+  const person = (p, email) => `<div class="person">${avatar({ photo: p.photo || p.googlePhoto, name: p.name || email })}<div>${esc(p.name || email)}<small>${esc([p.cargo, email].filter(Boolean).join(' · '))}</small></div></div>`;
 
   return `<main class="main">
     <div class="page-header"><div><div class="eyebrow">Acesso mestre</div><h1>Gerenciar <em>acessos</em></h1></div></div>
@@ -1020,7 +1031,21 @@ const actions = {
   'client-open': el => go('client', { client: findClient(el.dataset.id) }),
   'client-delete': el => safe(() => deleteClient(el.dataset.id)),
   'modal-close': closeModal,
-  'modal-bg': (el, e) => { if (e.target === el) closeModal(); },
+  'modal-bg': (el, e) => { if (e.target === el && !el.dataset.locked) closeModal(); },
+
+  // perfil e bugs/sugestões
+  'me-menu': () => toggleMenu(),
+  'profile-edit': () => { toggleMenu(false); openProfileModal(false); },
+  'pf-google': () => { S.pfDraft = ''; redrawPfPhoto(); },
+  'fb-open': () => { toggleMenu(false); openFeedbackModal(); },
+  'fb-inbox': () => { toggleMenu(false); go('feedback'); },
+  'fb-type': el => { S.fb.type = el.dataset.t; drawFeedbackModal(); $('#fb-text').focus(); },
+  'fb-expand': () => { S.fb.big = !S.fb.big; $('.fb-text-wrap').classList.toggle('big', S.fb.big); $('#fb-text').focus(); },
+  'fb-file-remove': el => { S.fb.files.splice(Number(el.dataset.i), 1); redrawFeedbackFiles(); },
+  'fb-send': () => sendFeedback(topbar),
+  'fb-filter': el => { S.fbFilter = el.dataset.f; render(); loadFeedbackThumbs(); },
+  'fb-reload': () => safe(async () => { S.feedback = null; render(); await loadFeedback(true); render(); loadFeedbackThumbs(); }),
+  'fb-zoom': el => safe(() => zoomFeedbackFile(el.dataset.file)),
 
   'report-new': newReport,
   'ai-open': () => openAiModal(),
@@ -1080,6 +1105,7 @@ const actions = {
 };
 
 document.addEventListener('click', e => {
+  if (!e.target.closest('.me-wrap')) toggleMenu(false);
   const el = e.target.closest('[data-act]');
   if (!el || !actions[el.dataset.act]) return;
   actions[el.dataset.act](el, e);
@@ -1088,6 +1114,7 @@ document.addEventListener('click', e => {
 document.addEventListener('submit', e => {
   e.preventDefault();
   if (e.target.id === 'client-form') safe(saveClientFromModal);
+  if (e.target.id === 'profile-form') safe(() => saveProfileFromModal(topbar));
   if (e.target.id === 'grant-form') {
     const fd = new FormData(e.target);
     safe(() => grantAccess(fd.get('email'), fd.get('role')));
@@ -1099,6 +1126,12 @@ document.addEventListener('input', e => {
   if (e.target.matches('[data-input=search]')) {
     S.search = e.target.value;
     $('#client-list').innerHTML = clientGrid();
+  } else if (e.target.matches('#fb-text')) {
+    S.fb.text = e.target.value; updateFeedbackState();
+  } else if (e.target.matches('#fb-where')) {
+    S.fb.where = e.target.value;
+  } else if (e.target.matches('#pf-name')) {
+    if (!S.pfDraft && !S.profile.googlePhoto) redrawPfPhoto();
   } else if (e.target.matches('#ai-month')) {
     updateAiNote();
   } else if (e.target.matches('#w-search')) {
@@ -1117,6 +1150,8 @@ document.addEventListener('input', e => {
 });
 
 document.addEventListener('change', e => {
+  if (e.target.matches('#pf-file')) { safe(() => pickProfilePhoto(e.target.files[0])); return; }
+  if (e.target.matches('#fb-file')) { const files = [...e.target.files]; safe(() => addFeedbackFiles(files)); return; }
   if (e.target.matches('#windsor-fields select')) e.target.dataset.touched = '1';
   if (e.target.matches('#client-form [name=type]')) {
     const r = $('#client-form [name=wMetaResult]');
@@ -1125,6 +1160,8 @@ document.addEventListener('change', e => {
   const el = e.target.closest('[data-change]');
   if (!el) return;
   if (el.dataset.change === 'owner') { S.ownerFilter = el.value; go('clients'); }
+  if (el.dataset.change === 'fb-status') { setFeedbackStatus(el.dataset.id, el.value); refreshTopbar(topbar); el.closest('.fb-card').className = el.closest('.fb-card').className.replace(/st-\w+/, 'st-' + el.value); }
+  if (el.dataset.change === 'fb-type-filter') { S.fbType = el.value; render(); loadFeedbackThumbs(); }
   if (el.dataset.change === 'role') safe(() => updateAllowed(el.dataset.email, { role: el.value }, 'Papel atualizado.', false));
   if (el.dataset.change === 'imp-done') safe(async () => {
     // Marca na hora e grava em segundo plano (se falhar, o app avisa e recarrega do servidor).
@@ -1138,7 +1175,18 @@ document.addEventListener('change', e => {
 });
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && $('#modal').innerHTML) closeModal();
+  if (e.key !== 'Escape') return;
+  if ($('.me-menu:not([hidden])')) { toggleMenu(false); $('.me')?.focus(); return; }
+  if ($('#modal').innerHTML && !$('.modal-bg[data-locked]')) closeModal();
+});
+
+// Print colado (Ctrl+V) vira anexo quando a janela de bugs/sugestões está aberta.
+document.addEventListener('paste', e => {
+  if (!$('.fb-modal') || !S.fb) return;
+  const files = [...(e.clipboardData?.files || [])].filter(f => /^image\//.test(f.type));
+  if (!files.length) return;
+  e.preventDefault();
+  safe(() => addFeedbackFiles(files));
 });
 
 window.addEventListener('beforeunload', e => {

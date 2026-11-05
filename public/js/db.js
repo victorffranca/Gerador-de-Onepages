@@ -7,6 +7,7 @@ export const mode = inAppsScript ? 'gas' : FIREBASE_CONFIG && FIREBASE_CONFIG.ap
 export const isDemo = mode === 'demo';
 export const lower = e => String(e || '').trim().toLowerCase();
 export const isAutoDomain = email => AUTO_ALLOW_DOMAINS.map(lower).includes(lower(email).split('@')[1] || '');
+export const prettyName = email => String(email || '').split('@')[0].split(/[._-]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ');
 export const isMaster = email => MASTER_EMAILS.map(lower).includes(lower(email));
 
 export function createBackend() {
@@ -62,6 +63,13 @@ function createAppsScriptBackend() {
     windsorPull: (clientId, month, type) => call('windsorPull', clientId, month, type),
     aiStatus: () => call('aiStatus'),
     aiReport: (clientId, month) => call('aiReport', clientId, month),
+    // Perfil e bugs/sugestões (o servidor identifica a pessoa; o argumento "user" só é usado na demonstração).
+    async getProfile() { if (me && me.profile) { const p = me.profile; me.profile = null; return p; } return call('getProfile'); },
+    saveProfile: (user, data) => call('saveProfile', data),
+    submitFeedback: (user, data) => call('submitFeedback', data),
+    listFeedback: () => call('listFeedback'),
+    setFeedbackStatus: (user, id, status) => call('setFeedbackStatus', id, status),
+    feedbackFile: (user, id) => call('feedbackFile', id),
   };
 }
 
@@ -110,6 +118,12 @@ async function createFirebaseBackend() {
     touchProfile: user => F.setDoc(ref('users', user.uid),
       { email: user.email, name: user.name, photo: user.photo, lastLogin: Date.now() }, { merge: true }),
     listProfiles: async () => all(await F.getDocs(col('users'))),
+    async getProfile(user) { const s = await F.getDoc(ref('users', user.uid)); const u = s.exists() ? s.data() : {}; return { email: user.email, name: u.name || user.name, cargo: u.cargo || '', photo: u.customPhoto || '', googlePhoto: user.photo || '' }; },
+    saveProfile: (user, data) => F.setDoc(ref('users', user.uid), { name: data.name, cargo: data.cargo, customPhoto: data.photo || '' }, { merge: true }),
+    submitFeedback: async () => { throw new Error('Bugs e sugestões funcionam só no app publicado no Google Apps Script.'); },
+    listFeedback: async () => [],
+    setFeedbackStatus: async () => {},
+    feedbackFile: async () => { throw new Error('Anexo indisponível.'); },
 
     listAllowed: async () => all(await F.getDocs(col('allowedUsers'))),
     setAllowed: (email, data) => F.setDoc(ref('allowedUsers', lower(email)), { ...data, email: lower(email) }, { merge: true }),
@@ -157,7 +171,9 @@ function createLocalBackend() {
   const load = () => {
     if (mem) return mem;
     try { mem = JSON.parse(localStorage.getItem(KEY)); } catch { mem = null; }
-    return (mem = mem || { session: null, allowedUsers: {}, accessRequests: {}, users: {}, clients: {}, reports: {} });
+    mem = mem || { session: null, allowedUsers: {}, accessRequests: {}, users: {}, clients: {}, reports: {} };
+    mem.feedback = mem.feedback || {}; mem.feedbackFiles = mem.feedbackFiles || {};
+    return mem;
   };
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(mem)); } catch { /* sem storage: fica em memória */ } };
   const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -191,8 +207,31 @@ function createLocalBackend() {
       load().accessRequests[user.email] = { email: user.email, name: user.name, photo: user.photo, requestedAt: Date.now() }; save();
     },
     async touchProfile(user) {
-      const d = load(); d.users[user.uid] = { ...d.users[user.uid], email: user.email, name: user.name, photo: user.photo, lastLogin: Date.now() }; save();
+      const d = load(), cur = d.users[user.uid] || {};
+      d.users[user.uid] = { ...cur, email: user.email, name: cur.name || prettyName(user.email), lastLogin: Date.now() }; save();
     },
+    async getProfile(user) {
+      const u = load().users[user.uid] || {};
+      return { email: user.email, name: u.name || prettyName(user.email), cargo: u.cargo || '', photo: u.photo || '', googlePhoto: u.googlePhoto || '' };
+    },
+    async saveProfile(user, data) {
+      const d = load(); d.users[user.uid] = { ...d.users[user.uid], email: user.email, name: data.name, cargo: data.cargo, photo: data.photo || '' }; save();
+    },
+    async submitFeedback(user, data) {
+      const d = load(), id = newId();
+      const attachments = (data.attachments || []).slice(0, 3).map((f, i) => { const fid = id + '-' + i; d.feedbackFiles[fid] = { name: f.name, data: f.data }; return { id: fid, name: f.name, size: f.data.length }; });
+      d.feedback[id] = { type: data.type, text: data.text, where: data.where || '', email: user.email, status: 'novo', createdAt: Date.now(), attachments };
+      try { save(); } catch { /* sem espaço: fica em memória */ }
+      await new Promise(r => setTimeout(r, 300));
+      return { id };
+    },
+    async listFeedback() {
+      const d = load(), byEmail = {};
+      Object.values(d.users).forEach(u => { byEmail[u.email] = u; });
+      return values(d.feedback).map(f => ({ ...f, author: { email: f.email, ...(byEmail[f.email] || { name: prettyName(f.email) }) } })).sort((a, b) => b.createdAt - a.createdAt);
+    },
+    async setFeedbackStatus(user, id, status) { const d = load(); if (d.feedback[id]) d.feedback[id].status = status; save(); },
+    async feedbackFile(user, id) { const f = load().feedbackFiles[id]; if (!f) throw new Error('Anexo não encontrado.'); return f; },
     listProfiles: async () => values(load().users),
 
     listAllowed: async () => values(load().allowedUsers),

@@ -101,6 +101,20 @@ custo por resultado, CPC, cliques, impressões), como no modelo da Ducais.
 rode a função `testarIA` uma vez (autoriza e testa). Sem a chave, a análise é escrita pelas regras
 automáticas do app. Cada relatório usa uma chamada ao Claude (custo de alguns centavos de dólar).
 
+## Perfil e bugs/sugestões
+
+- **Perfil no topo**: foto, nome e cargo. A foto e o nome vêm do diretório do Google Workspace (serviço avançado
+  *People*, escopo `directory.readonly`); a foto é atualizada a cada 3 dias. No primeiro acesso o app pergunta o cargo.
+- **Menu do perfil**: *Editar perfil* (nome, cargo e foto; a foto enviada é reduzida para 160 px), *Enviar bug ou
+  sugestão* e, só para o acesso mestre, *Caixa de bugs e sugestões*.
+- **Bugs e sugestões**: tipo (nova tela, melhoria, bug, outro), texto de 10 a 5000 caracteres, onde acontece
+  (preenchido com a tela atual) e até 3 imagens (pode colar print com Ctrl+V). Fica nas abas *feedback* e
+  *feedbackFiles* da planilha. Só o acesso mestre lê e muda o status (novo, em análise, feito, arquivado).
+
+**Depois de publicar esta versão (uma vez):** no editor do Apps Script, rode a função `autorizarPerfil` e aceite
+a permissão nova (ver o diretório da empresa). Enquanto não autorizar, o app não abre para ninguém. Se o diretório
+não estiver disponível, o app funciona igual, só sem a foto do Google (cada pessoa pode enviar a sua).
+
 ## Liberar pessoas
 
 1. Abra o app com a conta mestre e vá em **Acessos**.

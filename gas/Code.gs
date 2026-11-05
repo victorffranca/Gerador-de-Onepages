@@ -20,7 +20,15 @@ const TABLES = {
   users: ['uid', 'json'],
   clients: ['id', 'ownerUid', 'json'],
   reports: ['id', 'clientId', 'json'],
+  feedback: ['id', 'email', 'json'],
+  // Anexos dos bugs/sugestões, em pedaços (uma célula aceita até 50 mil caracteres): chave = arquivo:parte.
+  feedbackFiles: ['id', 'feedbackId', 'json'],
 };
+
+const FEEDBACK_TYPES = ['nova', 'melhoria', 'bug', 'outro'];
+const FEEDBACK_STATUS = ['novo', 'analise', 'feito', 'arquivado'];
+const FILE_CHUNK = 40000;
+const IMG_DATA_RE = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+\/=]+$/;
 
 function doGet(e) {
   // Diagnóstico: abra o link do app com ?diag=1 no final para testar o servidor sem a interface.
@@ -47,6 +55,13 @@ function doGet(e) {
 function testarWindsor() {
   const res = windsorFetchAll_([{ connector: 'facebook', params: { fields: 'account_id,account_name,spend', date_preset: 'last_30d' } }])[0];
   Logger.log(res.error ? 'ERRO no Windsor: ' + res.error : 'Windsor OK: ' + res.rows.length + ' conta(s) da Meta com gasto nos últimos 30 dias.');
+}
+
+/** Rode no editor depois de publicar a versão com perfis: autoriza a leitura das fotos do diretório do Google. */
+function autorizarPerfil() {
+  const me = lower_(Session.getEffectiveUser().getEmail());
+  const d = directoryProfile_(me);
+  Logger.log(d ? 'Diretório OK: ' + (d.name || '(sem nome)') + (d.photo ? ' · com foto' : ' · sem foto no Google') : 'Não foi possível ler o diretório do Google (veja o LEIA-ME).');
 }
 
 /** Rode uma vez no editor do Apps Script para criar a planilha e autorizar o app. */
@@ -81,11 +96,70 @@ const METHODS = {
   whoami: function (ctx) {
     const out = { user: { uid: ctx.email, email: ctx.email, name: ctx.email.split('@')[0], photo: '' }, access: ctx.access };
     if (ctx.access.allowed) {
-      const u = get_('users', ctx.email);
-      if (!u || Date.now() - (u.lastLogin || 0) > 6 * 3600 * 1000) METHODS.touchProfile(ctx);
+      out.profile = profileFor_(ctx.email);
       out.data = METHODS.bootstrap(ctx);
     }
     return out;
+  },
+  getProfile: function (ctx) { return profileFor_(ctx.email); },
+  // Nome, cargo e foto (foto enviada pela pessoa; vazia = usa a do Google).
+  saveProfile: function (ctx, data) {
+    data = data || {};
+    const name = String(data.name || '').trim().slice(0, 80), cargo = String(data.cargo || '').trim().slice(0, 80);
+    if (!name) throw userErr_('Informe seu nome.');
+    if (!cargo) throw userErr_('Informe seu cargo.');
+    const photo = String(data.photo || '');
+    if (photo && !IMG_DATA_RE.test(photo)) throw userErr_('Foto inválida.');
+    if (photo.length > 60000) throw userErr_('A foto ficou grande demais. Escolha outra imagem.');
+    const u = get_('users', ctx.email) || { email: ctx.email };
+    u.email = ctx.email; u.name = name; u.cargo = cargo; u.photo = photo; u.updatedAt = Date.now();
+    put_('users', ctx.email, [], u);
+    return publicProfile_(u);
+  },
+
+  // ── Bugs e sugestões: qualquer pessoa com acesso envia; só o acesso mestre lê. ──
+  submitFeedback: function (ctx, data) {
+    data = data || {};
+    const type = FEEDBACK_TYPES.indexOf(data.type) >= 0 ? data.type : '';
+    const text = String(data.text || '').trim();
+    if (!type) throw userErr_('Escolha o tipo.');
+    if (text.length < 10) throw userErr_('Escreva pelo menos 10 caracteres.');
+    if (text.length > 5000) throw userErr_('O texto passou de 5000 caracteres.');
+    const files = (Array.isArray(data.attachments) ? data.attachments : []).slice(0, 3);
+    files.forEach(function (f) {
+      if (!IMG_DATA_RE.test(String(f && f.data || ''))) throw userErr_('Anexo inválido: envie imagens (PNG ou JPG).');
+      if (f.data.length > 2000000) throw userErr_('Um anexo ficou grande demais (máx. ~1,5 MB).');
+    });
+    const id = Utilities.getUuid();
+    const meta = files.map(function (f, i) { return { id: id + '-' + i, name: String(f.name || 'imagem').slice(0, 120), size: f.data.length }; });
+    if (files.length) saveFiles_(id, files, meta);
+    const fb = { id: id, type: type, text: text, where: String(data.where || '').trim().slice(0, 200), email: ctx.email,
+      status: 'novo', createdAt: Date.now(), attachments: meta, userAgent: String(data.userAgent || '').slice(0, 200) };
+    put_('feedback', id, [ctx.email], fb);
+    return { id: id };
+  },
+  listFeedback: function (ctx) {
+    needMaster_(ctx);
+    const people = {};
+    all_('users').forEach(function (u) { people[u.email || u.id] = publicProfile_(u); });
+    return all_('feedback').map(function (f) { f.author = people[f.email] || { email: f.email, name: prettyName_(f.email) }; return f; })
+      .sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+  },
+  setFeedbackStatus: function (ctx, id, status) {
+    needMaster_(ctx);
+    if (FEEDBACK_STATUS.indexOf(status) < 0) throw userErr_('Status inválido.');
+    const f = get_('feedback', id);
+    if (!f) throw userErr_('Item não encontrado.');
+    f.status = status; f.statusAt = Date.now();
+    put_('feedback', id, [f.email], f);
+  },
+  feedbackFile: function (ctx, fileId) {
+    needMaster_(ctx);
+    const parts = readValues_('feedbackFiles').filter(function (v) { return String(v[0]).indexOf(fileId + ':') === 0; })
+      .map(function (v) { try { return JSON.parse(v[2]); } catch (e) { return null; } }).filter(Boolean)
+      .sort(function (a, b) { return a.part - b.part; });
+    if (!parts.length) throw userErr_('Anexo não encontrado.');
+    return { name: parts[0].name, data: parts.map(function (p) { return p.data; }).join('') };
   },
   bootstrap: function (ctx) {
     const clients = METHODS.listClients(ctx, null);
@@ -98,6 +172,7 @@ const METHODS = {
     });
     const out = { clients: clients, reports: reports };
     if (ctx.admin) { out.profiles = all_('users'); out.allowed = all_('allowedUsers'); out.requests = all_('accessRequests'); }
+    if (ctx.access.role === 'master') out.feedbackNew = all_('feedback').filter(function (f) { return (f.status || 'novo') === 'novo'; }).length;
     return out;
   },
   requestAccess: function (ctx) {
@@ -678,6 +753,64 @@ function autoDomain_(email) {
 }
 
 function needAdmin_(ctx) { if (!ctx.admin) throw denied_(); }
+function needMaster_(ctx) { if (ctx.access.role !== 'master') throw denied_(); }
+function userErr_(msg) { const e = new Error(msg); e.code = 'invalid'; return e; }
+
+// ── PERFIL ────────────────────────────────────────────────────
+// Foto e nome vêm do diretório do Google Workspace (serviço avançado "People"); a pessoa pode trocar no app.
+function directoryProfile_(email) {
+  try {
+    if (typeof People === 'undefined') return null;
+    const r = People.People.searchDirectoryPeople({ query: email, readMask: 'names,photos,emailAddresses', sources: ['DIRECTORY_SOURCE_TYPE_DOMAIN_PROFILE'], pageSize: 5 });
+    const p = (r.people || []).filter(function (x) { return (x.emailAddresses || []).some(function (e) { return lower_(e.value) === email; }); })[0];
+    if (!p) return {};
+    const photo = (p.photos || []).filter(function (x) { return !x.default && x.url; })[0];
+    return { name: (p.names && p.names[0] && p.names[0].displayName) || '', photo: photo ? photo.url.replace(/=s\d+(-c)?$/, '') + '=s160-c' : '' };
+  } catch (e) {
+    console.warn('Diretório do Google indisponível: ' + e);
+    return null;
+  }
+}
+
+function prettyName_(email) {
+  return String(email || '').split('@')[0].split(/[._-]+/).filter(Boolean).map(function (w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(' ');
+}
+
+function publicProfile_(u) {
+  const email = u.email || u.id || '';
+  return { email: email, name: u.name || prettyName_(email), cargo: u.cargo || '', photo: u.photo || '', googlePhoto: u.googlePhoto || '' };
+}
+
+// Atualiza último acesso (a cada 6 h) e a foto do Google (a cada 3 dias) e devolve o perfil.
+function profileFor_(email) {
+  const now = Date.now();
+  const u = get_('users', email) || {};
+  let changed = !u.email;
+  u.email = email;
+  if (now - (u.lastLogin || 0) > 6 * 3600 * 1000) { u.lastLogin = now; changed = true; }
+  if (now - (u.googleAt || 0) > 3 * 24 * 3600 * 1000) {
+    const d = directoryProfile_(email);
+    u.googleAt = now; changed = true;
+    if (d) { u.googlePhoto = d.photo || ''; if (!u.name && d.name) u.name = d.name; }
+  }
+  if (!u.name) { u.name = prettyName_(email); changed = true; }
+  if (changed) put_('users', email, [], u);
+  return publicProfile_(u);
+}
+
+function saveFiles_(feedbackId, files, meta) {
+  const rows = [];
+  files.forEach(function (f, i) {
+    const parts = Math.ceil(f.data.length / FILE_CHUNK);
+    for (let p = 0; p < parts; p++) {
+      rows.push([meta[i].id + ':' + p, feedbackId, JSON.stringify({ name: meta[i].name, part: p, parts: parts, data: f.data.slice(p * FILE_CHUNK, (p + 1) * FILE_CHUNK) })]);
+    }
+  });
+  withLock_(function () {
+    const sh = table_('feedbackFiles');
+    sh.getRange(sh.getLastRow() + 1, 1, rows.length, 3).setValues(rows);
+  });
+}
 
 function ownClient_(ctx, id) {
   const c = get_('clients', id);
