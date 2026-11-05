@@ -18,6 +18,7 @@ export const ICON = {
   inbox: svg('<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>'),
   logout: svg('<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>'),
   x: svg('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>'),
+  swap: svg('<path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/>'),
   expand: svg('<path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/>', 15),
   clip: svg('<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>', 16),
   camera: svg('<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>', 16),
@@ -70,7 +71,11 @@ export function profileChip() {
       <button class="me-item" role="menuitem" data-act="fb-open">${ICON.bulb}<span>Enviar bug ou sugestão</span></button>
       <button class="me-item" role="menuitem" data-act="fb-mine">${ICON.chat}<span>Meus chamados</span>${S.replies?.length ? `<span class="count">${S.replies.length}</span>` : ''}</button>
       ${isMasterRole() ? `<button class="me-item" role="menuitem" data-act="fb-inbox">${ICON.inbox}<span>Caixa de bugs e sugestões</span>${S.feedbackNew ? `<span class="count">${S.feedbackNew}</span>` : ''}</button>` : ''}
-      ${api.canSignOut ? `<div class="me-sep"></div><button class="me-item" role="menuitem" data-act="logout">${ICON.logout}<span>Sair</span></button>` : ''}
+      <div class="me-sep"></div>
+      ${api.canSignOut
+        ? `<button class="me-item" role="menuitem" data-act="logout">${ICON.logout}<span>Sair</span></button>`
+        : `<a class="me-item" role="menuitem" href="${esc(api.switchUrl)}" target="_top">${ICON.swap}<span>Trocar de conta</span></a>
+           <a class="me-item" role="menuitem" href="${esc(api.logoutUrl)}" target="_top">${ICON.logout}<span>Sair<small>Sai da conta Google neste navegador</small></span></a>`}
     </div>
   </div>`;
 }

@@ -35,6 +35,15 @@ function createAppsScriptBackend() {
   return {
     canSignOut: false,
     isAppsScript: true,
+    // Sair: o Apps Script usa a conta Google do navegador, então "sair" é sair do Google e voltar ao app
+    // (a tela de login do Google aparece e a pessoa escolhe a conta).
+    get logoutUrl() {
+      const back = (me && me.appUrl) || 'https://script.google.com';
+      return 'https://accounts.google.com/Logout?continue=' + encodeURIComponent('https://appengine.google.com/_ah/logout?continue=' + back);
+    },
+    get switchUrl() {
+      return 'https://accounts.google.com/AccountChooser?continue=' + encodeURIComponent((me && me.appUrl) || 'https://script.google.com');
+    },
     onAuth(cb) { listener = cb; refresh(); },
     async getAccess() { return me.access; },
     // A primeira carga já veio junto com o login (whoami); as próximas vão ao servidor.

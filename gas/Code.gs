@@ -94,7 +94,7 @@ function api(method, args) {
 const METHODS = {
   // Login + carga inicial numa chamada só: com acesso liberado já devolve clientes, one pages e acessos.
   whoami: function (ctx) {
-    const out = { user: { uid: ctx.email, email: ctx.email, name: ctx.email.split('@')[0], photo: '' }, access: ctx.access };
+    const out = { user: { uid: ctx.email, email: ctx.email, name: ctx.email.split('@')[0], photo: '' }, access: ctx.access, appUrl: appUrl_() };
     if (ctx.access.allowed) {
       out.profile = profileFor_(ctx.email);
       out.data = METHODS.bootstrap(ctx);
@@ -799,6 +799,11 @@ function directoryProfile_(email) {
     console.warn('Diretório do Google indisponível: ' + e);
     return null;
   }
+}
+
+// Link do app (usado para voltar ao app depois de sair da conta Google).
+function appUrl_() {
+  try { return ScriptApp.getService().getUrl() || ''; } catch (e) { return ''; }
 }
 
 function prettyName_(email) {

@@ -240,7 +240,9 @@ function renderNoAccess() {
   root.innerHTML = stateCard('🔒', blocked ? 'Acesso bloqueado' : 'Acesso aguardando liberação',
     blocked ? `O acesso de <strong>${esc(S.user.email)}</strong> foi bloqueado pelo administrador. Fale com ele se precisar de acesso.`
       : `Você entrou como <strong>${esc(S.user.email)}</strong>. Sua solicitação foi enviada ao administrador. Assim que for liberada, clique em “Verificar novamente”.`,
-    '<button class="btn-secondary" data-act="recheck">Verificar novamente</button>' + (api.canSignOut ? ' <button class="btn-primary" data-act="logout">Sair</button>' : ''));
+    '<button class="btn-secondary" data-act="recheck">Verificar novamente</button>' + (api.canSignOut
+      ? ' <button class="btn-primary" data-act="logout">Sair</button>'
+      : ` <a class="btn-primary" href="${esc(api.switchUrl)}" target="_top">Entrar com outra conta</a>`));
 }
 
 const pendingOnly = (requests, allowed) =>

@@ -506,3 +506,6 @@ select.input { width:auto; }
 .fb-st.st-feito { background:var(--accent2-tint); color:var(--success); }
 .w-idle { display:block; font-size:11.5px; font-weight:500; color:var(--warn); white-space:normal; margin-top:2px; }
 .w-idle-tag { font-size:10.5px; font-weight:600; color:var(--warn); background:var(--mustard-tint); padding:1px 7px; border-radius:999px; margin-left:4px; white-space:nowrap; }
+.me-item { text-decoration:none; }
+.me-item small { display:block; font-size:11px; font-weight:400; color:var(--muted2); margin-top:1px; }
+a.btn-primary, a.btn-secondary { text-decoration:none; display:inline-block; }
