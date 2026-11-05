@@ -21,5 +21,11 @@ export const MASTER_EMAILS = [
   'victor_franca@v4company.com'
 ];
 
+// Domínios liberados AUTOMATICAMENTE: quem entra com e-mail desses domínios já ganha acesso de usuário
+// (vê só os próprios clientes). O mestre ainda pode bloquear uma pessoa na aba Acessos.
+export const AUTO_ALLOW_DOMAINS = [
+  'v4company.com'
+];
+
 // Texto padrão do campo "Responsável / Agência" em clientes novos.
 export const DEFAULT_AGENCY = '';

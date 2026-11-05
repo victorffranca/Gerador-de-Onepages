@@ -10,8 +10,11 @@ numa planilha Google Sheets na conta de quem publica.
 - **Clientes por pessoa**: cada usuário cadastra, edita e vê só os próprios clientes.
 - **Acesso mestre** (e-mails em `public/js/config.js`): vê todos os clientes, filtra por pessoa
   e libera, bloqueia ou remove acessos na aba **Acessos**. Pode nomear outros administradores.
-- **Pedidos de acesso**: quem entra sem permissão gera uma solicitação, que aparece para o mestre
-  com os botões Liberar/Recusar.
+- **Liberação automática do domínio**: quem entra com e-mail @v4company.com já ganha acesso de Usuário no
+  primeiro acesso (domínios em `AUTO_ALLOW_DOMAINS`, `public/js/config.js`). A pessoa aparece na aba Acessos
+  e o mestre pode **Bloquear** (quem é do domínio não pode ser removido, só bloqueado) ou torná-la Administrador.
+- **Pedidos de acesso**: e-mails de outros domínios que entram sem permissão geram uma solicitação, que aparece
+  para o mestre com os botões Liberar/Recusar.
 - **One pages por cliente e mês**, com histórico, gráfico de evolução, duplicar para o mês seguinte,
   editar e excluir.
 - **Recursos inteligentes**:

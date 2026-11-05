@@ -35,8 +35,8 @@ const html = pub('index.html')
   .replace('<script type="module" src="js/app.js"></script>', () => loader);
 writeFileSync(join(out, 'Index.html'), html);
 
-const { MASTER_EMAILS } = await import(pathToFileURL(join(here, 'public/js/config.js')).href);
-const code = readFileSync(join(here, 'gas/Code.gs'), 'utf8').replace('__MASTER_EMAILS__', JSON.stringify(MASTER_EMAILS));
+const { MASTER_EMAILS, AUTO_ALLOW_DOMAINS } = await import(pathToFileURL(join(here, 'public/js/config.js')).href);
+const code = readFileSync(join(here, 'gas/Code.gs'), 'utf8').replace('__MASTER_EMAILS__', JSON.stringify(MASTER_EMAILS)).replace('__AUTO_DOMAINS__', JSON.stringify(AUTO_ALLOW_DOMAINS));
 writeFileSync(join(out, 'Code.gs'), code);
 writeFileSync(join(out, 'appsscript.json'), readFileSync(join(here, 'gas/appsscript.json'), 'utf8'));
 

@@ -1,5 +1,5 @@
-import { createBackend, isDemo, isMaster, lower } from './db.js';
-import { MASTER_EMAILS, DEFAULT_AGENCY } from './config.js';
+import { createBackend, isDemo, isMaster, isAutoDomain, lower } from './db.js';
+import { MASTER_EMAILS, AUTO_ALLOW_DOMAINS, DEFAULT_AGENCY } from './config.js';
 import { esc, fmt, fmtN, formatMonth, metrics, renderReport, suggestInsights, checkData, downloadReport, REPORT_CSS, PIPE_FIELDS, campaignImprovements, OBJECTIVES, isConversionCampaign } from './report.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -93,7 +93,7 @@ async function onAuth(user, err) {
   root.innerHTML = '<div class="boot">Verificando acesso…</div>';
   try { S.access = await api.getAccess(user); } catch (e) { console.error(e); S.access = { allowed: false }; }
   if (!S.access.allowed) {
-    await api.requestAccess(user).catch(console.error);
+    if (!S.access.blocked) await api.requestAccess(user).catch(console.error);
     return renderNoAccess();
   }
   if (!api.isAppsScript) api.touchProfile(user).catch(console.error);
@@ -222,8 +222,10 @@ function renderLogin() {
 }
 
 function renderNoAccess() {
-  root.innerHTML = stateCard('🔒', 'Acesso aguardando liberação',
-    `Você entrou como <strong>${esc(S.user.email)}</strong>. Sua solicitação foi enviada ao administrador. Assim que for liberada, clique em “Verificar novamente”.`,
+  const blocked = S.access && S.access.blocked;
+  root.innerHTML = stateCard('🔒', blocked ? 'Acesso bloqueado' : 'Acesso aguardando liberação',
+    blocked ? `O acesso de <strong>${esc(S.user.email)}</strong> foi bloqueado pelo administrador. Fale com ele se precisar de acesso.`
+      : `Você entrou como <strong>${esc(S.user.email)}</strong>. Sua solicitação foi enviada ao administrador. Assim que for liberada, clique em “Verificar novamente”.`,
     '<button class="btn-secondary" data-act="recheck">Verificar novamente</button>' + (api.canSignOut ? ' <button class="btn-primary" data-act="logout">Sair</button>' : ''));
 }
 
@@ -959,6 +961,7 @@ function viewAdmin() {
         <div class="form-group"><label>Papel</label><select name="role"><option value="user">Usuário</option><option value="admin">Administrador</option></select></div>
         <button class="btn-primary" type="submit">Liberar acesso</button>
       </form>
+      <div class="role-help auto-note">✓ Quem entra com e-mail <strong>${AUTO_ALLOW_DOMAINS.map(d => '@' + esc(d)).join(', ')}</strong> é liberado <strong>automaticamente</strong> como Usuário no primeiro acesso. Use <strong>Bloquear</strong> para barrar alguém e <strong>Administrador</strong> para dar mais poder. Este formulário serve para e-mails de outros domínios.</div>
       <div class="role-help"><strong>Usuário</strong>: vê e edita só os próprios clientes. <strong>Administrador</strong>: vê todos os clientes e gerencia acessos.</div></div></div>
 
     ${requests.length ? `<div class="section-title"><span class="dot"></span>Solicitações pendentes (${requests.length})</div>
@@ -979,7 +982,7 @@ function viewAdmin() {
           <td>${active ? '<span class="status on">Ativo</span>' : '<span class="status off">Bloqueado</span>'}</td>
           <td class="hide-sm">${p.id ? `<button class="btn-secondary btn-sm" data-act="view-owner" data-uid="${esc(p.id)}">${n} cliente${n === 1 ? '' : 's'}</button>` : '<span class="muted">—</span>'}</td>
           <td class="hide-sm muted">${p.lastLogin ? dateBR(p.lastLogin) : 'Nunca entrou'}</td>
-          <td class="actions-cell">${a.fixed ? '' : `<button class="btn-secondary btn-sm" data-act="toggle-active" data-email="${mail}">${active ? 'Bloquear' : 'Reativar'}</button> <button class="icon-btn" data-act="revoke" data-email="${mail}" title="Remover acesso">🗑</button>`}</td>
+          <td class="actions-cell">${a.fixed ? '' : `<button class="btn-secondary btn-sm" data-act="toggle-active" data-email="${mail}">${active ? 'Bloquear' : 'Reativar'}</button> ${isAutoDomain(a.email) ? '' : `<button class="icon-btn" data-act="revoke" data-email="${mail}" title="Remover acesso">🗑</button>`}`}</td>
         </tr>`;
       }).join('')}</tbody>
     </table></div>

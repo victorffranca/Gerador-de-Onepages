@@ -9,6 +9,10 @@
 // E-mails com ACESSO MESTRE. Gerado a partir de public/js/config.js pelo build.
 const MASTER_EMAILS = ["victor_franca@v4company.com"];
 
+// Domínios liberados automaticamente (public/js/config.js): quem entra com um e-mail desses domínios
+// ganha acesso de usuário no primeiro acesso. O mestre pode bloquear pessoas na aba Acessos.
+const AUTO_ALLOW_DOMAINS = ["v4company.com"];
+
 // Colunas de cada aba: [chave, ...colunas de busca, json]
 const TABLES = {
   allowedUsers: ['email', 'json'],
@@ -117,7 +121,12 @@ const METHODS = {
     if (next.role !== 'admin') next.role = 'user';
     put_('allowedUsers', email, [], next);
   },
-  removeAllowed: function (ctx, email) { needAdmin_(ctx); remove_('allowedUsers', lower_(email)); },
+  // Quem é de um domínio liberado voltaria sozinho ao entrar: nesse caso "remover" vira bloquear.
+  removeAllowed: function (ctx, email) {
+    needAdmin_(ctx); email = lower_(email);
+    if (autoDomain_(email)) { const cur = get_('allowedUsers', email) || { email: email, role: 'user' }; cur.active = false; put_('allowedUsers', email, [], cur); }
+    else remove_('allowedUsers', email);
+  },
   removeRequest: function (ctx, email) { needAdmin_(ctx); remove_('accessRequests', lower_(email)); },
 
   listClients: function (ctx, ownerUid) {
@@ -653,8 +662,19 @@ function me_() {
 function access_(email) {
   if (MASTER_EMAILS.map(lower_).indexOf(email) >= 0) return { allowed: true, role: 'master' };
   const a = get_('allowedUsers', email);
-  if (a && a.active !== false) return { allowed: true, role: a.role === 'admin' ? 'admin' : 'user' };
+  if (a) return a.active !== false ? { allowed: true, role: a.role === 'admin' ? 'admin' : 'user' } : { allowed: false, role: null, blocked: true };
+  if (autoDomain_(email)) {
+    // Primeiro acesso de alguém do domínio liberado: registra na lista (aparece em Acessos e pode ser bloqueado).
+    put_('allowedUsers', email, [], { email: email, role: 'user', active: true, grantedBy: 'automático', grantedAt: Date.now() });
+    try { remove_('accessRequests', email); } catch (e) { /* sem pedido pendente */ }
+    return { allowed: true, role: 'user' };
+  }
   return { allowed: false, role: null };
+}
+
+function autoDomain_(email) {
+  const at = email.lastIndexOf('@');
+  return at > 0 && AUTO_ALLOW_DOMAINS.map(lower_).indexOf(email.slice(at + 1)) >= 0;
 }
 
 function needAdmin_(ctx) { if (!ctx.admin) throw denied_(); }

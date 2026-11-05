@@ -1,11 +1,12 @@
 // Camada de dados: Google Apps Script, Firebase ou localStorage (modo demonstração).
 // As implementações expõem a mesma interface, usada por app.js.
-import { FIREBASE_CONFIG, MASTER_EMAILS } from './config.js';
+import { FIREBASE_CONFIG, MASTER_EMAILS, AUTO_ALLOW_DOMAINS } from './config.js';
 
 const inAppsScript = typeof google !== 'undefined' && google.script && google.script.run;
 export const mode = inAppsScript ? 'gas' : FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey ? 'firebase' : 'demo';
 export const isDemo = mode === 'demo';
 export const lower = e => String(e || '').trim().toLowerCase();
+export const isAutoDomain = email => AUTO_ALLOW_DOMAINS.map(lower).includes(lower(email).split('@')[1] || '');
 export const isMaster = email => MASTER_EMAILS.map(lower).includes(lower(email));
 
 export function createBackend() {
@@ -97,7 +98,11 @@ async function createFirebaseBackend() {
     async getAccess(user) {
       if (isMaster(user.email)) return { allowed: true, role: 'master' };
       const s = await F.getDoc(ref('allowedUsers', user.email));
-      if (s.exists() && s.data().active !== false) return { allowed: true, role: s.data().role || 'user' };
+      if (s.exists()) return s.data().active !== false ? { allowed: true, role: s.data().role || 'user' } : { allowed: false, role: null, blocked: true };
+      if (isAutoDomain(user.email)) {
+        await F.setDoc(ref('allowedUsers', lower(user.email)), { email: lower(user.email), role: 'user', active: true, grantedBy: 'automático', grantedAt: Date.now() });
+        return { allowed: true, role: 'user' };
+      }
       return { allowed: false, role: null };
     },
     requestAccess: user => F.setDoc(ref('accessRequests', user.email),
@@ -173,8 +178,14 @@ function createLocalBackend() {
 
     async getAccess(user) {
       if (isMaster(user.email)) return { allowed: true, role: 'master' };
-      const a = load().allowedUsers[user.email];
-      return a && a.active !== false ? { allowed: true, role: a.role || 'user' } : { allowed: false, role: null };
+      const d = load(), a = d.allowedUsers[user.email];
+      if (a) return a.active !== false ? { allowed: true, role: a.role || 'user' } : { allowed: false, role: null, blocked: true };
+      if (isAutoDomain(user.email)) {
+        d.allowedUsers[user.email] = { email: user.email, role: 'user', active: true, grantedBy: 'automático', grantedAt: Date.now() };
+        delete d.accessRequests[user.email]; save();
+        return { allowed: true, role: 'user' };
+      }
+      return { allowed: false, role: null };
     },
     async requestAccess(user) {
       load().accessRequests[user.email] = { email: user.email, name: user.name, photo: user.photo, requestedAt: Date.now() }; save();
