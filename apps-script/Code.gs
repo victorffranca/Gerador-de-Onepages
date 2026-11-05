@@ -153,6 +153,32 @@ const METHODS = {
     f.status = status; f.statusAt = Date.now();
     put_('feedback', id, [f.email], f);
   },
+  // Resposta do mestre: aparece como aviso para quem abriu o chamado na próxima vez que abrir o app.
+  replyFeedback: function (ctx, id, text) {
+    needMaster_(ctx);
+    text = String(text || '').trim();
+    if (text.length < 2) throw userErr_('Escreva a resposta.');
+    if (text.length > 5000) throw userErr_('A resposta passou de 5000 caracteres.');
+    const f = get_('feedback', id);
+    if (!f) throw userErr_('Item não encontrado.');
+    const me = get_('users', ctx.email) || {};
+    f.reply = { text: text, at: Date.now(), by: ctx.email, byName: me.name || prettyName_(ctx.email), byCargo: me.cargo || '', byPhoto: me.photo || me.googlePhoto || '' };
+    f.replySeen = false; f.replySeenAt = null;
+    put_('feedback', id, [f.email], f);
+    return f;
+  },
+  // Chamados da própria pessoa (para "Meus chamados" e o aviso de resposta).
+  myFeedback: function (ctx) {
+    return rows_('feedback').filter(function (r) { return r.cols[0] === ctx.email; }).map(function (r) { return feedbackForAuthor_(r.data); })
+      .sort(function (a, b) { return (b.createdAt || 0) - (a.createdAt || 0); });
+  },
+  markReplySeen: function (ctx, id) {
+    const f = get_('feedback', id);
+    if (!f || f.email !== ctx.email) throw denied_();
+    if (f.replySeen) return;
+    f.replySeen = true; f.replySeenAt = Date.now();
+    put_('feedback', id, [f.email], f);
+  },
   feedbackFile: function (ctx, fileId) {
     needMaster_(ctx);
     const parts = readValues_('feedbackFiles').filter(function (v) { return String(v[0]).indexOf(fileId + ':') === 0; })
@@ -172,7 +198,8 @@ const METHODS = {
     });
     const out = { clients: clients, reports: reports };
     if (ctx.admin) { out.profiles = all_('users'); out.allowed = all_('allowedUsers'); out.requests = all_('accessRequests'); }
-    if (ctx.access.role === 'master') out.feedbackNew = all_('feedback').filter(function (f) { return (f.status || 'novo') === 'novo'; }).length;
+    out.replies = METHODS.myFeedback(ctx).filter(function (f) { return f.reply && !f.replySeen; });
+    if (ctx.access.role === 'master') out.feedbackNew =all_('feedback').filter(function (f) { return (f.status || 'novo') === 'novo'; }).length;
     return out;
   },
   requestAccess: function (ctx) {
@@ -291,19 +318,21 @@ Object.assign(METHODS, {
   // ele só serve de alternativa se a leitura por dados falhar. Fica 6 h em cache.
   windsorAccounts: function (ctx, refresh) {
     const cache = CacheService.getScriptCache();
-    const hit = !refresh && cache.get('windsor-accounts-v2');
+    const hit = !refresh && cache.get('windsor-accounts-v3');
     if (hit) return JSON.parse(hit);
-    let out = windsorAccountsFromData_();
-    const empty = Object.keys(WINDSOR_CONNECTORS).every(function (c) { return !out[c].length; });
-    if (empty) out = windsorAccountList_() || out;
+    // Contas com gasto nos últimos 90 dias primeiro; depois as conectadas sem gasto recente (idle), que o
+    // endpoint rápido lista. Essas aparecem na busca com o aviso "sem gasto recente".
+    const out = windsorAccountsFromData_();
+    const all = windsorAccountList_();
     Object.keys(WINDSOR_CONNECTORS).forEach(function (c) {
       const seen = {};
-      out[c] = (out[c] || [])
-        .map(function (a) { return { id: normAcc_(a.id), name: a.name }; })
-        .filter(function (a) { return a.id && !seen[a.id] && (seen[a.id] = true); })
-        .sort(function (a, b) { return a.name.localeCompare(b.name); });
+      const active = (out[c] || []).map(function (a) { return { id: normAcc_(a.id), name: a.name }; });
+      const idle = ((all && all[c]) || []).map(function (a) { return { id: normAcc_(a.id), name: a.name, idle: true }; });
+      const byName = function (a, b) { return String(a.name).localeCompare(String(b.name)); };
+      out[c] = active.sort(byName).concat(idle.sort(byName))
+        .filter(function (a) { return a.id && !seen[a.id] && (seen[a.id] = true); });
     });
-    if (!out.errors.length) cache.put('windsor-accounts-v2', JSON.stringify(out), 21600);
+    if (!out.errors.length) cache.put('windsor-accounts-v3', JSON.stringify(out), 21600);
     return out;
   },
 
@@ -796,6 +825,12 @@ function profileFor_(email) {
   if (!u.name) { u.name = prettyName_(email); changed = true; }
   if (changed) put_('users', email, [], u);
   return publicProfile_(u);
+}
+
+// O que quem abriu o chamado vê: sem anexos (só o mestre baixa) e sem dados internos.
+function feedbackForAuthor_(f) {
+  return { id: f.id, type: f.type, text: f.text, where: f.where || '', status: f.status || 'novo', createdAt: f.createdAt,
+    attachments: (f.attachments || []).length, reply: f.reply ? { text: f.reply.text, at: f.reply.at, byName: f.reply.byName, byCargo: f.reply.byCargo || '', byPhoto: f.reply.byPhoto || '' } : null, replySeen: !!f.replySeen };
 }
 
 function saveFiles_(feedbackId, files, meta) {

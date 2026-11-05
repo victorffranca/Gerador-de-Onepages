@@ -68,7 +68,7 @@ O app puxa as métricas do mês direto do Windsor (Meta Ads, Google Ads e GA4).
 enxerga (as do login dono da chave, em Windsor → Data). Se o cliente estiver vinculado a uma conta que não
 está nesse login, o app abre o cadastro do cliente e marca a conta com ⚠: desvincule (✕), busque a conta
 certa e salve. A lista do cadastro só mostra contas que a chave consegue ler (com dados nos últimos 90 dias);
-uma conta pausada há mais tempo pode ser vinculada digitando o ID. Para conferir a qual login a chave
+contas conectadas sem gasto nos últimos 90 dias também aparecem, com a etiqueta "sem gasto recente" (o relatório delas pode vir zerado). Para conferir a qual login a chave
 pertence, abra o link do app com `?diag=windsor` no final: ele mostra exemplos das contas lidas.
 
 Observações: a lista de contas fica 6 h em cache (use "Atualizar lista" no cadastro). Mostra contas com
@@ -110,6 +110,9 @@ automáticas do app. Cada relatório usa uma chamada ao Claude (custo de alguns 
 - **Bugs e sugestões**: tipo (nova tela, melhoria, bug, outro), texto de 10 a 5000 caracteres, onde acontece
   (preenchido com a tela atual) e até 3 imagens (pode colar print com Ctrl+V). Fica nas abas *feedback* e
   *feedbackFiles* da planilha. Só o acesso mestre lê e muda o status (novo, em análise, feito, arquivado).
+- **Responder**: na caixa, *Responder* em cada item. Quem abriu o chamado vê a resposta num aviso na próxima vez que
+  abrir o app (ou em até 30 s, se estiver com ele aberto) e pode rever tudo em *Meus chamados*. A caixa mostra se a
+  resposta já foi lida.
 
 **Depois de publicar esta versão (uma vez):** no editor do Apps Script, rode a função `autorizarPerfil` e aceite
 a permissão nova (ver o diretório da empresa). Enquanto não autorizar, o app não abre para ninguém. Se o diretório

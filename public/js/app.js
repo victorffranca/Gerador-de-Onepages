@@ -1,5 +1,6 @@
 import { createBackend, isDemo, isMaster, isAutoDomain, lower } from './db.js';
 import { MASTER_EMAILS, AUTO_ALLOW_DOMAINS, DEFAULT_AGENCY } from './config.js';
+import { showReplies, viewMine, loadMine, sendReply, toggleReplyBox } from './people.js';
 import { initPeople, ICON, applyProfile, profileChip, toggleMenu, refreshTopbar, openProfileModal, redrawPfPhoto, pickProfilePhoto, saveProfileFromModal, openFeedbackModal, drawFeedbackModal, redrawFeedbackFiles, updateFeedbackState, addFeedbackFiles, sendFeedback, loadFeedback, viewFeedback, loadFeedbackThumbs, zoomFeedbackFile, setFeedbackStatus } from './people.js';
 import { esc, fmt, fmtN, formatMonth, metrics, renderReport, suggestInsights, checkData, downloadReport, REPORT_CSS, PIPE_FIELDS, campaignImprovements, OBJECTIVES, isConversionCampaign } from './report.js';
 
@@ -19,7 +20,11 @@ const TYPES = {
   'ecommerce': { label: 'E-commerce', icon: '🛒', desc: 'Funil de vendas, ROAS, faturamento e conversão.' },
   'inside-sales': { label: 'Inside Sales', icon: '🎯', desc: 'Pipeline de leads, MQL, SQL e fechamentos.' },
 };
-const BRAND = '<span class="brand-mark">4</span><span class="brand-name">OnePage</span><span class="brand-sub">Generator</span>';
+// Logo Ferraz Piai & Co.: moldura quadrada com o "4" (cor do texto, funciona no fundo claro e no escuro).
+const BRAND = `<span class="brand-logo" role="img" aria-label="Ferraz Piai &amp; Co.">
+  <svg class="brand-icon" viewBox="0 0 32 32" aria-hidden="true"><path d="M13 3.5H5.5a2 2 0 0 0-2 2v21a2 2 0 0 0 2 2h21a2 2 0 0 0 2-2V19" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/><path d="M22.5 26V6.5L9 20.5h19" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="square" stroke-linejoin="miter"/></svg>
+  <span class="brand-text"><span class="brand-name">Ferraz Piai</span><span class="brand-sub">&amp; Co.</span></span>
+</span>`;
 const GOOGLE_ICON = '<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
 
 // ── HELPERS ───────────────────────────────────────────────────
@@ -66,7 +71,7 @@ const stateCard = (icon, title, text, actions = '') =>
   `<div class="state-card"><div class="big">${icon}</div><h1>${title}</h1><p>${text}</p>${actions}</div>`;
 
 // ── BOOT / AUTH ───────────────────────────────────────────────
-initPeople({ S, get api() { return api; }, $, $$, toast, safe, friendly, queueWrite: (...a) => queueWrite(...a), avatar, go: (...a) => go(...a), closeModal: () => closeModal(), isDemo });
+initPeople({ S, get api() { return api; }, $, $$, toast, safe, friendly, queueWrite: (...a) => queueWrite(...a), avatar, go: (...a) => go(...a), closeModal: () => closeModal(), isDemo, render: () => render(), topbar: () => topbar() });
 document.head.insertAdjacentHTML('beforeend', `<style>${REPORT_CSS}</style>`);
 
 (async () => {
@@ -106,6 +111,7 @@ async function onAuth(user, err) {
   try { await loadAll(false); } catch (e) { console.error(e); toast(friendly(e), 'err'); }
   await go('clients');
   if (!S.profile.cargo) openProfileModal(true); // primeiro acesso: pergunta o cargo
+  else showReplies(); // respostas do mestre aos chamados desta pessoa
   preloadIntegrations();
 }
 
@@ -118,6 +124,7 @@ async function loadAll(force) {
   const d = api.bootstrap ? await api.bootstrap(force) : await compositeLoad();
   S.data = { clients: d.clients || [], reports: d.reports || {}, profiles: d.profiles || [], allowed: d.allowed || [], requests: d.requests || [], at: Date.now() };
   S.pendingCount = isAdmin() ? pendingOnly(S.data.requests, S.data.allowed).length : 0;
+  S.replies = d.replies || (api.isAppsScript ? [] : (await api.myFeedback(S.user).catch(() => [])).filter(f => f.reply && !f.replySeen));
   if (d.feedbackNew != null) S.feedbackNew = d.feedbackNew;
   else if (S.access?.role === 'master' && !api.isAppsScript) S.feedbackNew = (await api.listFeedback(S.user).catch(() => [])).filter(f => (f.status || 'novo') === 'novo').length;
   applyProfile();
@@ -164,6 +171,7 @@ function refreshData() {
     const typing = document.activeElement && document.activeElement.closest && document.activeElement.closest('#root input, #root textarea');
     if (['clients', 'client', 'admin'].includes(S.view) && !$('#modal').innerHTML && !typing) { syncViewData(); render(); }
     else { const tb = $('.topbar'); if (tb) tb.outerHTML = topbar(); }
+    if (!typing) showReplies();
   }).catch(console.error).finally(() => { refreshing = null; });
   return refreshing;
 }
@@ -224,7 +232,7 @@ function renderLogin() {
       <button class="btn-google" data-act="login">${GOOGLE_ICON} Entrar com Google</button>
       ${isDemo ? `<div class="demo-box"><strong>Modo demonstração</strong>: você está abrindo o app fora do Google Apps Script. Entre com qualquer e-mail para simular o login (os dados ficam só neste navegador).
         <div class="form-group"><input id="demo-email" type="email" value="${esc(MASTER_EMAILS[0] || '')}" placeholder="email@empresa.com"></div></div>` : ''}
-      <div class="login-note">O acesso é liberado pelo administrador. No primeiro acesso, entre normalmente e aguarde a liberação.</div>
+      <div class="login-note">Contas @v4company.com entram direto. Outros e-mails precisam de liberação do administrador.</div>
     </div></div>
   </div>`;
 }
@@ -252,6 +260,7 @@ async function go(view, params = {}) {
   window.scrollTo(0, 0);
   // Mostra na hora o que está em memória e atualiza em segundo plano se os dados tiverem mais de 30 s.
   if (['clients', 'client', 'admin'].includes(view) && Date.now() - S.data.at > 30000) refreshData();
+  if (view === 'mine') safe(async () => { await loadMine(); if (S.view === 'mine') render(); });
   if (view === 'feedback') {
     if (!S.feedback) safe(async () => { await loadFeedback(); if (S.view === 'feedback') { render(); loadFeedbackThumbs(); } });
     else loadFeedbackThumbs();
@@ -266,7 +275,7 @@ function show(view) {
 }
 
 function render() {
-  const views = { clients: viewClients, client: viewClient, editor: viewEditor, report: viewReport, admin: viewAdmin, feedback: viewFeedback };
+  const views = { clients: viewClients, client: viewClient, editor: viewEditor, report: viewReport, admin: viewAdmin, feedback: viewFeedback, mine: viewMine };
   root.innerHTML = topbar()
     + (isDemo ? '<div class="demo-banner no-print">Modo demonstração: dados salvos só neste navegador. Publicado no Google Apps Script, o app usa a conta Google de cada pessoa e a planilha de dados.</div>' : '')
     + views[S.view]();
@@ -418,11 +427,12 @@ function renderWindsorSlots() {
   box.innerHTML = W_SLOTS.map(s => {
     const a = S.wDraft[s.slot];
     $(`#client-form [name=${s.input}]`).value = a ? a.id : '';
-    // Conta vinculada que não aparece entre as que o Windsor consegue ler: é a causa do erro "conta não disponível".
-    const list = S.windsorAccounts && S.windsorAccounts[s.connector];
-    const unknown = a && list && list.length && !list.some(x => x.id === a.id);
+    // ⚠ só para a conta que o Windsor recusou de verdade (erro "conta não disponível" ao puxar os dados).
+    const unknown = a && S.badAccounts?.has(normAcc(a.id));
+    const info = a && (S.windsorAccounts?.[s.connector] || []).find(x => x.id === normAcc(a.id));
+    const idle = !unknown && info?.idle;
     return `<div class="w-slot ${a ? 'on' : ''} ${unknown ? 'warn' : ''}"><span class="w-plat ${s.slot}">${s.label}</span>
-      <span class="w-val">${a ? `${esc(a.name || 'Conta')} <small>${esc(a.id)}</small>` : '<em>nenhuma conta vinculada</em>'}${unknown ? '<span class="w-warn">⚠ o Windsor não lê esta conta: desvincule (✕) e busque a certa</span>' : ''}</span>
+      <span class="w-val">${a ? `${esc(a.name || info?.name || 'Conta')} <small>${esc(a.id)}</small>` : '<em>nenhuma conta vinculada</em>'}${unknown ? '<span class="w-warn">⚠ o Windsor recusou esta conta: desvincule (✕) e busque a certa</span>' : ''}${idle ? '<span class="w-idle">sem gasto nos últimos 90 dias: o relatório pode vir zerado</span>' : ''}</span>
       ${a ? `<button type="button" class="icon-btn" data-act="w-clear" data-slot="${s.slot}" title="Desvincular">✕</button>` : ''}</div>`;
   }).join('');
 }
@@ -433,7 +443,11 @@ const normAcc = id => String(id ?? '').trim().replace(/^[a-z0-9]+__/i, '').repla
 // Erros em que o caminho certo é abrir o cadastro do cliente para (re)vincular as contas.
 function relinkIfNeeded(e) {
   if (e.code !== 'windsor-unlinked' && e.code !== 'windsor-account') return;
-  if (e.code === 'windsor-account') S.windsorAccounts = null; // força recarregar a lista de contas
+  if (e.code === 'windsor-account') {
+    S.windsorAccounts = null; // força recarregar a lista de contas
+    const id = /\(([^)]+)\) vinculada/.exec(e.message || '');
+    if (id) (S.badAccounts = S.badAccounts || new Set()).add(normAcc(id[1]));
+  }
   openClientModal(S.client);
 }
 
@@ -449,11 +463,11 @@ function renderWindsorResults() {
   W_SLOTS.forEach(s => (S.windsorAccounts[s.connector] || []).forEach(a => {
     const t = norm(a.name), id = a.id.replace(/\D/g, '');
     const score = words.filter(w => t.includes(w)).length + (t.includes(q) ? 10 : 0) + (digits.length >= 4 && id.includes(digits) ? 20 : 0);
-    if (score) hits.push({ s, a, score });
+    if (score) hits.push({ s, a, score: score - (a.idle ? 0.5 : 0) });
   }));
   hits.sort((x, y) => y.score - x.score);
   const row = (s, a, manual) => `<button type="button" class="w-row" data-act="w-pick" data-slot="${s.slot}" data-id="${esc(a.id)}" data-name="${esc(a.name)}">
-    <span class="w-plat ${s.slot}">${s.label}</span><span class="w-name">${manual ? `Usar o ID <b>${esc(a.id)}</b>` : esc(a.name)}</span><span class="w-id">${manual ? '' : esc(a.id)}</span></button>`;
+    <span class="w-plat ${s.slot}">${s.label}</span><span class="w-name">${manual ? `Usar o ID <b>${esc(a.id)}</b>` : esc(a.name)}${a.idle ? ' <small class="w-idle-tag">sem gasto recente</small>' : ''}</span><span class="w-id">${manual ? '' : esc(a.id)}</span></button>`;
   let html = hits.slice(0, 12).map(h => row(h.s, h.a)).join('');
   if (digits.length >= 6 && !hits.some(h => h.a.id.replace(/\D/g, '') === digits)) {
     html += W_SLOTS.map(s => row(s, { id: normAcc(raw), name: '' }, true)).join('');
@@ -1046,6 +1060,11 @@ const actions = {
   'fb-filter': el => { S.fbFilter = el.dataset.f; render(); loadFeedbackThumbs(); },
   'fb-reload': () => safe(async () => { S.feedback = null; render(); await loadFeedback(true); render(); loadFeedbackThumbs(); }),
   'fb-zoom': el => safe(() => zoomFeedbackFile(el.dataset.file)),
+  'fb-mine': () => { toggleMenu(false); go('mine'); },
+  'fb-reply-open': el => toggleReplyBox(el.dataset.id, true),
+  'fb-reply-cancel': el => toggleReplyBox(el.dataset.id, false),
+  'fb-reply-send': el => safe(() => sendReply(el.dataset.id)),
+  'reply-ok': () => showReplies(true),
 
   'report-new': newReport,
   'ai-open': () => openAiModal(),

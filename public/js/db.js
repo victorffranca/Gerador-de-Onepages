@@ -70,6 +70,9 @@ function createAppsScriptBackend() {
     listFeedback: () => call('listFeedback'),
     setFeedbackStatus: (user, id, status) => call('setFeedbackStatus', id, status),
     feedbackFile: (user, id) => call('feedbackFile', id),
+    replyFeedback: (user, id, text) => call('replyFeedback', id, text),
+    myFeedback: () => call('myFeedback'),
+    markReplySeen: (user, id) => call('markReplySeen', id),
   };
 }
 
@@ -124,6 +127,7 @@ async function createFirebaseBackend() {
     listFeedback: async () => [],
     setFeedbackStatus: async () => {},
     feedbackFile: async () => { throw new Error('Anexo indisponível.'); },
+    replyFeedback: async () => {}, myFeedback: async () => [], markReplySeen: async () => {},
 
     listAllowed: async () => all(await F.getDocs(col('allowedUsers'))),
     setAllowed: (email, data) => F.setDoc(ref('allowedUsers', lower(email)), { ...data, email: lower(email) }, { merge: true }),
@@ -231,6 +235,19 @@ function createLocalBackend() {
       return values(d.feedback).map(f => ({ ...f, author: { email: f.email, ...(byEmail[f.email] || { name: prettyName(f.email) }) } })).sort((a, b) => b.createdAt - a.createdAt);
     },
     async setFeedbackStatus(user, id, status) { const d = load(); if (d.feedback[id]) d.feedback[id].status = status; save(); },
+    async replyFeedback(user, id, text) {
+      const d = load(), f = d.feedback[id]; if (!f) throw new Error('Item não encontrado.');
+      const me = Object.values(d.users).find(u => u.email === user.email) || {};
+      f.reply = { text, at: Date.now(), by: user.email, byName: me.name || prettyName(user.email), byCargo: me.cargo || '', byPhoto: me.photo || '' };
+      f.replySeen = false; save();
+      return { id, ...f };
+    },
+    async myFeedback(user) {
+      return values(load().feedback).filter(f => f.email === user.email)
+        .map(f => ({ id: f.id, type: f.type, text: f.text, where: f.where, status: f.status || 'novo', createdAt: f.createdAt, attachments: (f.attachments || []).length, reply: f.reply || null, replySeen: !!f.replySeen }))
+        .sort((a, b) => b.createdAt - a.createdAt);
+    },
+    async markReplySeen(user, id) { const f = load().feedback[id]; if (f && f.email === user.email) { f.replySeen = true; save(); } },
     async feedbackFile(user, id) { const f = load().feedbackFiles[id]; if (!f) throw new Error('Anexo não encontrado.'); return f; },
     listProfiles: async () => values(load().users),
 
@@ -260,7 +277,7 @@ function createLocalBackend() {
     windsorStatus: async () => ({ configured: true, demo: true }),
     windsorAccounts: async () => ({
       facebook: [{ id: '1282540650025185', name: 'CA - DUCAIS RODÍZIO E DELIVERY' }, { id: '1001864475195326', name: 'TheGold' }],
-      google_ads: [{ id: '331-602-1729', name: 'Gráfica Itália' }, { id: '466-535-6719', name: 'The Gold Marmoraria- CDA' }],
+      google_ads: [{ id: '331-602-1729', name: 'Gráfica Itália' }, { id: '466-535-6719', name: 'The Gold Marmoraria- CDA' }, { id: '539-076-9003', name: 'Intact Estojos Especiais', idle: true }],
       googleanalytics4: [{ id: '420042968', name: 'Lupo Sport - GA4' }],
       errors: [],
     }),

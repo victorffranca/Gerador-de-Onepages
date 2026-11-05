@@ -68,6 +68,7 @@ export function profileChip() {
       <div class="me-head">${avatar({ photo: photoOf(p), name: p.name })}<div><strong>${esc(p.name || '')}</strong><small>${esc(S.user.email)}</small>${role}</div></div>
       <button class="me-item" role="menuitem" data-act="profile-edit">${ICON.pencil}<span>Editar perfil</span></button>
       <button class="me-item" role="menuitem" data-act="fb-open">${ICON.bulb}<span>Enviar bug ou sugestão</span></button>
+      <button class="me-item" role="menuitem" data-act="fb-mine">${ICON.chat}<span>Meus chamados</span>${S.replies?.length ? `<span class="count">${S.replies.length}</span>` : ''}</button>
       ${isMasterRole() ? `<button class="me-item" role="menuitem" data-act="fb-inbox">${ICON.inbox}<span>Caixa de bugs e sugestões</span>${S.feedbackNew ? `<span class="count">${S.feedbackNew}</span>` : ''}</button>` : ''}
       ${api.canSignOut ? `<div class="me-sep"></div><button class="me-item" role="menuitem" data-act="logout">${ICON.logout}<span>Sair</span></button>` : ''}
     </div>
@@ -149,6 +150,7 @@ export function saveProfileFromModal(topbar) {
   refreshTopbar(topbar);
   queueWrite(() => api.saveProfile(S.user, data));
   toast('Perfil salvo.');
+  showReplies();
 }
 
 // Reduz a imagem no navegador (perfil: quadrada 160 px; anexos: até 1600 px) e devolve JPEG em base64.
@@ -185,6 +187,7 @@ function currentWhere() {
     report: join(S.reportTab === 'camp' ? 'Melhorias nas campanhas' : 'One page', c, m),
     admin: 'Acessos',
     feedback: 'Caixa de bugs e sugestões',
+    mine: 'Meus chamados',
   })[S.view] || '';
 }
 
@@ -315,7 +318,9 @@ export function viewFeedback() {
             <p class="fb-card-text">${esc(x.text)}</p>
             ${x.where ? `<div class="fb-card-where">${ICON.pin}${esc(x.where)}</div>` : ''}
             ${(x.attachments || []).length ? `<div class="fb-card-files">${x.attachments.map(f => `<button class="fb-thumb" data-act="fb-zoom" data-file="${esc(f.id)}" title="${esc(f.name)}"><img data-file="${esc(f.id)}" alt="${esc(f.name)}"></button>`).join('')}</div>` : ''}
+            ${replyBlock(x)}
             <footer class="fb-card-foot"><span class="muted">${when(x.createdAt)}</span>
+              <button class="btn-secondary btn-sm" data-act="fb-reply-open" data-id="${esc(x.id)}">${x.reply ? 'Editar resposta' : 'Responder'}</button>
               <select class="input input-sm fb-status-sel" data-change="fb-status" data-id="${esc(x.id)}" aria-label="Status">${FB_STATUS.map(([k, l]) => `<option value="${k}" ${(x.status || 'novo') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
             </footer>
           </article>`;
@@ -360,4 +365,118 @@ export function setFeedbackStatus(id, status) {
   S.feedbackNew = S.feedback.filter(f => (f.status || 'novo') === 'novo').length;
   queueWrite(() => api.setFeedbackStatus(S.user, id, status));
   toast('Status atualizado.');
+}
+
+// ── RESPOSTAS AOS CHAMADOS ────────────────────────────────────
+const whenBR = t => t ? new Date(t).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+const dayBR = t => t ? new Date(t).toLocaleDateString('pt-BR') : '';
+const clip = (s, n) => (s = String(s || '')).length > n ? s.slice(0, n - 1).trimEnd() + '…' : s;
+const typeInfo = k => FB_TYPES.find(t => t.k === k) || FB_TYPES[3];
+const AUTHOR_STATUS = { novo: 'Recebido', analise: 'Em análise', feito: 'Resolvido', arquivado: 'Encerrado' };
+
+// Aviso (popup) com a resposta do mestre. Mostra uma por vez; "Entendi" marca como lida e passa para a próxima.
+export function showReplies(advance) {
+  const { S, $, api, queueWrite, avatar } = A;
+  if (advance) {
+    const done = S.replies && S.replies.shift();
+    if (done) { queueWrite(() => api.markReplySeen(S.user, done.id)); refreshTopbar(A.topbar); }
+  }
+  if (!S.replies || !S.replies.length) { if (advance) A.closeModal(); return; }
+  if (!advance && $('#modal').innerHTML) return; // não atropela outra janela aberta
+  const f = S.replies[0], t = typeInfo(f.type), r = f.reply, more = S.replies.length - 1;
+  $('#modal').innerHTML = `<div class="modal-bg" data-act="modal-bg" data-locked="1"><div class="modal reply-modal" role="alertdialog" aria-modal="true" aria-labelledby="reply-title">
+    <div class="reply-head"><span class="reply-badge">${ICON.chat}</span>
+      <div><h2 id="reply-title">Seu chamado foi respondido</h2><p>${esc(t.label)} · aberto em ${dayBR(f.createdAt)}</p></div></div>
+    <div class="modal-body">
+      <div class="reply-orig"><span class="fb-label">Você escreveu</span><p>${esc(clip(f.text, 320))}</p></div>
+      <div class="reply-ans">
+        <div class="person">${avatar({ photo: r.byPhoto, name: r.byName })}<div>${esc(r.byName || 'Resposta')}<small>${esc([r.byCargo, whenBR(r.at)].filter(Boolean).join(' · '))}</small></div></div>
+        <p>${esc(r.text)}</p>
+      </div>
+    </div>
+    <div class="modal-actions">${more ? `<span class="muted">Mais ${more} resposta${more > 1 ? 's' : ''}</span>` : ''}<span class="spacer"></span>
+      <button class="btn-primary" data-act="reply-ok">${more ? 'Próxima' : 'Entendi'}</button></div>
+  </div></div>`;
+  $('[data-act=reply-ok]').focus();
+}
+
+// Bloco da resposta no cartão da caixa do mestre (e formulário para responder).
+function replyBlock(x) {
+  const open = A.S.replyOpen === x.id, r = x.reply;
+  const name = firstName(x.author?.name) || 'a pessoa';
+  let html = '';
+  if (r && !open) {
+    html += `<div class="fb-reply"><div class="fb-reply-head">${ICON.chat}<strong>Sua resposta</strong>
+      <span class="fb-reply-seen ${x.replySeen ? 'on' : ''}">${x.replySeen ? 'lida' : 'ainda não lida'}</span><span class="muted">${whenBR(r.at)}</span></div>
+      <p>${esc(r.text)}</p></div>`;
+  }
+  if (open) {
+    html += `<div class="fb-reply-form">
+      <label class="fb-label" for="reply-${esc(x.id)}">Resposta para ${esc(name)}</label>
+      <textarea id="reply-${esc(x.id)}" class="input" maxlength="5000" placeholder="Ela aparece como aviso na próxima vez que ${esc(name)} abrir o app.">${esc(r ? r.text : '')}</textarea>
+      <div class="fb-reply-actions"><button class="btn-secondary btn-sm" data-act="fb-reply-cancel" data-id="${esc(x.id)}">Cancelar</button>
+        <button class="btn-primary btn-sm" data-act="fb-reply-send" data-id="${esc(x.id)}">${r ? 'Atualizar resposta' : 'Enviar resposta'}</button></div>
+    </div>`;
+  }
+  return html;
+}
+
+export function toggleReplyBox(id, open) {
+  A.S.replyOpen = open ? id : null;
+  A.render();
+  loadFeedbackThumbs();
+  if (open) { const t = A.$('#reply-' + CSS.escape(id)); if (t) { t.focus(); t.setSelectionRange(t.value.length, t.value.length); } }
+}
+
+export async function sendReply(id) {
+  const { S, $, api, toast } = A;
+  const ta = $('#reply-' + CSS.escape(id)), btn = $(`[data-act=fb-reply-send][data-id="${CSS.escape(id)}"]`);
+  const text = ta.value.trim();
+  if (text.length < 2) { toast('Escreva a resposta.', 'err'); ta.focus(); return; }
+  btn.disabled = true; btn.textContent = 'Enviando…';
+  try {
+    const saved = await api.replyFeedback(S.user, id, text);
+    const x = (S.feedback || []).find(f => f.id === id);
+    if (x) Object.assign(x, { reply: saved.reply, replySeen: false, status: saved.status || x.status });
+    S.feedbackNew = (S.feedback || []).filter(f => (f.status || 'novo') === 'novo').length;
+    S.replyOpen = null;
+    A.render(); loadFeedbackThumbs();
+    toast(`Resposta enviada. ${firstName(x?.author?.name) || 'A pessoa'} vai ver um aviso ao abrir o app.`);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = 'Enviar resposta';
+    throw e;
+  }
+}
+
+// ── MEUS CHAMADOS (qualquer pessoa) ───────────────────────────
+export async function loadMine() {
+  const { S, api, queueWrite } = A;
+  S.mine = await api.myFeedback(S.user);
+  // abriu a lista: respostas que ainda não tinham sido vistas passam a contar como lidas
+  S.mine.filter(f => f.reply && !f.replySeen).forEach(f => { f.replySeen = true; queueWrite(() => api.markReplySeen(S.user, f.id)); });
+  S.replies = [];
+}
+
+export function viewMine() {
+  const { S } = A;
+  const list = S.mine;
+  const body = !list
+    ? '<div class="empty"><p>Carregando…</p></div>'
+    : !list.length
+      ? `<div class="empty"><div class="big">${ICON.bulb}</div><h3>Nenhum chamado ainda</h3><p>Achou um erro ou teve uma ideia? Conte para a gente.</p><button class="btn-primary" data-act="fb-open">Enviar bug ou sugestão</button></div>`
+      : `<div class="fb-list">${list.map(x => {
+          const t = typeInfo(x.type), st = x.status || 'novo';
+          return `<article class="fb-card ${x.type === 'bug' ? 'is-bug' : ''}">
+            <header class="fb-card-head"><span class="fb-pill t-${esc(x.type)}">${t.icon}${esc(t.label)}</span><span class="fb-st st-${esc(st)}">${AUTHOR_STATUS[st] || st}</span></header>
+            <p class="fb-card-text">${esc(x.text)}</p>
+            ${x.where ? `<div class="fb-card-where">${ICON.pin}${esc(x.where)}</div>` : ''}
+            ${x.reply ? `<div class="fb-reply"><div class="fb-reply-head">${ICON.chat}<strong>Resposta de ${esc(x.reply.byName || 'admin')}</strong><span class="muted">${whenBR(x.reply.at)}</span></div><p>${esc(x.reply.text)}</p></div>` : ''}
+            <footer class="fb-card-foot"><span class="muted">Aberto em ${whenBR(x.createdAt)}${x.attachments ? ` · ${x.attachments} anexo${x.attachments > 1 ? 's' : ''}` : ''}</span>${x.reply ? '' : '<span class="muted">Aguardando resposta</span>'}</footer>
+          </article>`;
+        }).join('')}</div>`;
+  return `<main class="main">
+    <div class="page-header"><div><div class="eyebrow">Bugs e sugestões</div><h1>Meus <em>chamados</em></h1></div>
+      <div class="header-actions"><button class="btn-primary" data-act="fb-open">+ Novo chamado</button></div></div>
+    ${body}
+  </main>`;
 }
