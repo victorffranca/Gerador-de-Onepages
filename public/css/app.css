@@ -182,6 +182,8 @@ select.input { width:auto; }
 .w-slot .w-plat { min-width:92px; text-align:center; }
 .w-val { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink); font-weight:600; }
 .w-val small { color:var(--muted2); font-weight:400; margin-left:6px; font-family:var(--mono); font-size:11px; }
+.w-slot.warn { background:var(--accent-tint); }
+.w-warn { display:block; font-family:var(--body); font-size:11.5px; font-weight:500; color:var(--danger); white-space:normal; margin-top:2px; }
 .w-val em { color:var(--muted2); font-weight:400; font-family:var(--serif); font-style:italic; }
 
 /* ── RELATÓRIO COM IA ── */

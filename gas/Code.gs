@@ -23,7 +23,7 @@ function doGet(e) {
   if (e && e.parameter && e.parameter.diag === 'windsor') {
     const res = api('windsorAccounts', [true]);
     const summary = res && !res.error
-      ? { contas: { meta: res.facebook.length, googleAds: res.google_ads.length, ga4: res.googleanalytics4.length }, fonte: res.source, erros: res.errors || [] }
+      ? { contas: { meta: res.facebook.length, googleAds: res.google_ads.length, ga4: res.googleanalytics4.length }, exemplos: { meta: res.facebook.slice(0, 4).map(function (a) { return a.name + ' (' + a.id + ')'; }), googleAds: res.google_ads.slice(0, 3).map(function (a) { return a.name + ' (' + a.id + ')'; }) }, fonte: res.source, erros: res.errors || [] }
       : res;
     return ContentService.createTextOutput(JSON.stringify(summary, null, 2));
   }
@@ -202,19 +202,24 @@ Object.assign(METHODS, {
     return { configured: !!PropertiesService.getScriptProperties().getProperty('WINDSOR_API_KEY') };
   },
 
-  // Contas conectadas no Windsor, por conector. Fica 6 h em cache.
+  // Contas que a chave do Windsor realmente consegue ler (as que têm dados nos últimos 90 dias), por conector.
+  // O endpoint rápido de contas do Windsor lista também contas que a chave não consegue usar; por isso
+  // ele só serve de alternativa se a leitura por dados falhar. Fica 6 h em cache.
   windsorAccounts: function (ctx, refresh) {
     const cache = CacheService.getScriptCache();
-    const hit = !refresh && cache.get('windsor-accounts');
+    const hit = !refresh && cache.get('windsor-accounts-v2');
     if (hit) return JSON.parse(hit);
-    const out = windsorAccountList_() || windsorAccountsFromData_();
+    let out = windsorAccountsFromData_();
+    const empty = Object.keys(WINDSOR_CONNECTORS).every(function (c) { return !out[c].length; });
+    if (empty) out = windsorAccountList_() || out;
     Object.keys(WINDSOR_CONNECTORS).forEach(function (c) {
       const seen = {};
       out[c] = (out[c] || [])
+        .map(function (a) { return { id: normAcc_(a.id), name: a.name }; })
         .filter(function (a) { return a.id && !seen[a.id] && (seen[a.id] = true); })
         .sort(function (a, b) { return a.name.localeCompare(b.name); });
     });
-    if (!out.errors.length) cache.put('windsor-accounts', JSON.stringify(out), 21600);
+    if (!out.errors.length) cache.put('windsor-accounts-v2', JSON.stringify(out), 21600);
     return out;
   },
 
@@ -232,7 +237,7 @@ Object.assign(METHODS, {
       return { connector: r.connector, params: Object.assign({ fields: r.fields.join(','), select_accounts: r.account }, range) };
     }));
     const failed = results.filter(function (r) { return r.error; });
-    if (failed.length) throw codeErr_('Windsor: ' + failed[0].error, 'windsor');
+    if (failed.length) throw codeErr_(failed[0].error, failed[0].code || 'windsor');
     const rows = {};
     reqs.forEach(function (r, i) { rows[r.key] = results[i].rows; });
     return windsorReport_(w, c.type, rows);
@@ -303,7 +308,7 @@ Object.assign(METHODS, {
       return { connector: x.req.connector, params: Object.assign({ fields: x.req.fields.join(','), select_accounts: x.req.account }, monthRange_(x.month)) };
     }));
     const failed = results.filter(function (r) { return r.error; });
-    if (failed.length) throw codeErr_('Windsor: ' + failed[0].error, 'windsor');
+    if (failed.length) throw codeErr_(failed[0].error, failed[0].code || 'windsor');
     const byMonth = {};
     calls.forEach(function (x, i) { (byMonth[x.month] = byMonth[x.month] || {})[x.req.key] = results[i].rows; });
 
@@ -521,7 +526,13 @@ function metaResultField_(w, type) {
   return META_RESULTS[w.metaResult] || (type === 'inside-sales' ? META_RESULTS.lead : META_RESULTS.purchase);
 }
 
+// IDs sem espaços e sem prefixos ("act_", "facebook__"), que o Windsor recusa na consulta de uma conta só.
+function normAcc_(id) {
+  return String(id == null ? '' : id).trim().replace(/^[a-z0-9]+__/i, '').replace(/^act_/i, '');
+}
+
 function windsorRequests_(w, type, withCampaigns) {
+  w = { meta: normAcc_(w.meta), google: normAcc_(w.google), ga4: normAcc_(w.ga4), metaResult: w.metaResult };
   const res = metaResultField_(w, type);
   const reqs = [];
   if (withCampaigns && w.meta) reqs.push({ key: 'metaCampaigns', connector: 'facebook', account: w.meta, fields: ['campaign', 'campaign_objective', 'spend', 'impressions', 'reach', 'link_clicks', res, 'action_values_omni_purchase'] });
@@ -605,14 +616,29 @@ function windsorFetchAll_(list) {
       .map(function (k) { return k + '=' + encodeURIComponent(item.params[k]); }).join('&');
     return { url: WINDSOR_URL + item.connector + '?api_key=' + encodeURIComponent(key) + '&' + q, muteHttpExceptions: true };
   }));
-  return responses.map(function (res) {
+  return responses.map(function (res, i) {
     let body = null;
     try { body = JSON.parse(res.getContentText()); } catch (e) { /* resposta não-JSON */ }
     if (res.getResponseCode() === 200 && body && !body.error) return { rows: body.data || [] };
     const err = body && body.error;
     const msg = typeof err === 'string' ? err : err && (err.message || JSON.stringify(err));
-    return { error: msg || 'HTTP ' + res.getResponseCode() };
+    return windsorProblem_(msg || 'HTTP ' + res.getResponseCode(), list[i]);
   });
+}
+
+const WINDSOR_LABELS = { facebook: 'Meta Ads', google_ads: 'Google Ads', googleanalytics4: 'GA4' };
+
+// Traduz os erros do Windsor (o original traz a lista inteira de contas) para uma mensagem curta e acionável.
+function windsorProblem_(msg, item) {
+  const acc = item && item.params && item.params.select_accounts;
+  if (/not available|Grant access to your accounts/i.test(msg)) {
+    const label = WINDSOR_LABELS[item.connector] || item.connector;
+    return { code: 'windsor-account', error: 'A conta de ' + label + (acc ? ' (' + acc + ')' : '') + ' vinculada a este cliente não está disponível no Windsor. Abra "Editar cliente" e escolha a conta certa.' };
+  }
+  if (/invalid api key|authentication|not authorized|unauthor/i.test(msg)) {
+    return { code: 'windsor-key', error: 'O Windsor recusou a chave de API. Confira a propriedade WINDSOR_API_KEY no Apps Script.' };
+  }
+  return { code: 'windsor', error: 'Windsor: ' + String(msg).slice(0, 240) };
 }
 
 function codeErr_(message, code) { const e = new Error(message); e.code = code; return e; }

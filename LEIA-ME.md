@@ -61,6 +61,13 @@ O app puxa as métricas do mês direto do Windsor (Meta Ads, Google Ads e GA4).
    GA4 e vendas (E-commerce); top 3 criativos da Meta com miniatura.
 3. Complete o que não vem das plataformas: faturamento real, MQL/SQL/oportunidades/fechamentos (CRM).
 
+**Erro "conta não disponível no Windsor":** o Windsor só deixa o app ler as contas que a *chave de API*
+enxerga (as do login dono da chave, em Windsor → Data). Se o cliente estiver vinculado a uma conta que não
+está nesse login, o app abre o cadastro do cliente e marca a conta com ⚠: desvincule (✕), busque a conta
+certa e salve. A lista do cadastro só mostra contas que a chave consegue ler (com dados nos últimos 90 dias);
+uma conta pausada há mais tempo pode ser vinculada digitando o ID. Para conferir a qual login a chave
+pertence, abra o link do app com `?diag=windsor` no final: ele mostra exemplos das contas lidas.
+
 Observações: a lista de contas fica 6 h em cache (use "Atualizar lista" no cadastro). Mostra contas com
 atividade nos últimos 365 dias. As miniaturas dos criativos são links do Facebook, que expiram depois
 de algumas semanas: one pages antigas podem perder a imagem.

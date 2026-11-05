@@ -405,10 +405,23 @@ function renderWindsorSlots() {
   box.innerHTML = W_SLOTS.map(s => {
     const a = S.wDraft[s.slot];
     $(`#client-form [name=${s.input}]`).value = a ? a.id : '';
-    return `<div class="w-slot ${a ? 'on' : ''}"><span class="w-plat ${s.slot}">${s.label}</span>
-      <span class="w-val">${a ? `${esc(a.name || 'Conta')} <small>${esc(a.id)}</small>` : '<em>nenhuma conta vinculada</em>'}</span>
+    // Conta vinculada que não aparece entre as que o Windsor consegue ler: é a causa do erro "conta não disponível".
+    const list = S.windsorAccounts && S.windsorAccounts[s.connector];
+    const unknown = a && list && list.length && !list.some(x => x.id === a.id);
+    return `<div class="w-slot ${a ? 'on' : ''} ${unknown ? 'warn' : ''}"><span class="w-plat ${s.slot}">${s.label}</span>
+      <span class="w-val">${a ? `${esc(a.name || 'Conta')} <small>${esc(a.id)}</small>` : '<em>nenhuma conta vinculada</em>'}${unknown ? '<span class="w-warn">⚠ o Windsor não lê esta conta: desvincule (✕) e busque a certa</span>' : ''}</span>
       ${a ? `<button type="button" class="icon-btn" data-act="w-clear" data-slot="${s.slot}" title="Desvincular">✕</button>` : ''}</div>`;
   }).join('');
+}
+
+// IDs sem espaços e sem prefixos ("act_", "facebook__"), como o servidor usa na consulta.
+const normAcc = id => String(id ?? '').trim().replace(/^[a-z0-9]+__/i, '').replace(/^act_/i, '');
+
+// Erros em que o caminho certo é abrir o cadastro do cliente para (re)vincular as contas.
+function relinkIfNeeded(e) {
+  if (e.code !== 'windsor-unlinked' && e.code !== 'windsor-account') return;
+  if (e.code === 'windsor-account') S.windsorAccounts = null; // força recarregar a lista de contas
+  openClientModal(S.client);
 }
 
 function renderWindsorResults() {
@@ -430,7 +443,7 @@ function renderWindsorResults() {
     <span class="w-plat ${s.slot}">${s.label}</span><span class="w-name">${manual ? `Usar o ID <b>${esc(a.id)}</b>` : esc(a.name)}</span><span class="w-id">${manual ? '' : esc(a.id)}</span></button>`;
   let html = hits.slice(0, 12).map(h => row(h.s, h.a)).join('');
   if (digits.length >= 6 && !hits.some(h => h.a.id.replace(/\D/g, '') === digits)) {
-    html += W_SLOTS.map(s => row(s, { id: raw, name: '' }, true)).join('');
+    html += W_SLOTS.map(s => row(s, { id: normAcc(raw), name: '' }, true)).join('');
   }
   box.innerHTML = html || `<div class="w-hint">Nenhuma conta encontrada para “${esc(raw)}”. Tente outra parte do nome ou cole o ID.</div>`;
 }
@@ -443,7 +456,7 @@ async function saveClientFromModal() {
   const id = f.dataset.id;
   const data = { name, type: fd.type, agency: fd.agency.trim(), meta: fd.meta === '' ? '' : Number(fd.meta), notes: fd.notes.trim(), updatedAt: Date.now() };
   if (!id) Object.assign(data, { ownerUid: S.user.uid, ownerEmail: S.user.email, ownerName: S.user.name, createdAt: Date.now() });
-  if ($('#client-form [name=wMetaResult]')) data.windsor = { meta: fd.wMeta || '', google: fd.wGoogle || '', ga4: fd.wGa4 || '', metaResult: fd.wMetaResult || '' };
+  if ($('#client-form [name=wMetaResult]')) data.windsor = { meta: normAcc(fd.wMeta), google: normAcc(fd.wGoogle), ga4: normAcc(fd.wGa4), metaResult: fd.wMetaResult || '' };
   const cid = id || newId();
   const payload = { id: cid, ...data };
   upsertClientLocal(payload);
@@ -770,7 +783,7 @@ async function runAiReport() {
     console.error(e);
     closeModal();
     toast(friendly(e), 'err');
-    if (e.code === 'windsor-unlinked') openClientModal(S.client);
+    relinkIfNeeded(e);
   } finally {
     clearInterval(timer);
   }
@@ -789,7 +802,7 @@ async function pullWindsor(btn) {
   } catch (e) {
     console.error(e);
     toast(friendly(e), 'err');
-    if (e.code === 'windsor-unlinked') openClientModal(S.client);
+    relinkIfNeeded(e);
   } finally {
     btn.disabled = false;
     btn.textContent = label;

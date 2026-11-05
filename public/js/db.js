@@ -217,6 +217,8 @@ function createLocalBackend() {
     async windsorPull(clientId) {
       const w = (load().clients[clientId] || {}).windsor || {};
       if (!w.meta && !w.google && !w.ga4) throw Object.assign(new Error('Este cliente ainda não tem contas do Windsor vinculadas.'), { code: 'windsor-unlinked' });
+      // Simula o Windsor recusando uma conta que a chave dele não enxerga.
+      if (/^(act_|facebook__)?1051202479011920$/.test(w.meta || '')) throw Object.assign(new Error('A conta de Meta Ads (1051202479011920) vinculada a este cliente não está disponível no Windsor. Abra "Editar cliente" e escolha a conta certa.'), { code: 'windsor-account' });
       await new Promise(r => setTimeout(r, 400));
       return {
         fields: { invMeta: 1418.06, clkMeta: 1638, impMeta: 254840, invGoogle: 608.93, clkGoogle: 2854, impGoogle: 49004, leads: 723, sessions: 21400, cart: 1320, checkout: 610, sales: 241 },
