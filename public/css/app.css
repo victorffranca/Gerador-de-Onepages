@@ -48,12 +48,10 @@ button { font-family:inherit; }
 /* ── MARCA ── */
 .brand { display:inline-flex; align-items:center; gap:10px; cursor:pointer; white-space:nowrap; }
 .brand-mark { width:32px; height:32px; border-radius:9px; background:var(--ink); color:var(--bone); font-family:var(--sans); font-weight:900; font-size:18px; line-height:32px; text-align:center; flex-shrink:0; }
-.brand-logo { display:inline-flex; align-items:center; gap:10px; color:var(--ink); }
-.brand-icon { width:34px; height:34px; flex-shrink:0; }
-.brand-text { display:flex; flex-direction:column; line-height:1.05; }
-.brand-name { font-family:var(--sans); font-size:17px; font-weight:700; letter-spacing:-.01em; color:inherit; }
-.brand-sub { font-family:var(--sans); font-size:15px; font-weight:400; color:inherit; opacity:.8; }
-.login-side .brand-logo { color:var(--bone); }
+/* Logo branca sobre preto: no fundo claro, inverte (fica preta sobre branco) e "multiply" some com o branco;
+   no fundo escuro do login, "screen" some com o preto e a logo fica clara. */
+.brand-logo { display:block; height:40px; width:auto; filter:invert(1); mix-blend-mode:multiply; }
+.login-side .brand-logo { filter:none; mix-blend-mode:screen; height:48px; }
 
 /* ── TOPBAR ── */
 .topbar { background:var(--paper); padding:0 40px; height:66px; display:flex; align-items:center; gap:36px; position:sticky; top:0; z-index:50; border-bottom:1px solid var(--border); }
@@ -349,8 +347,7 @@ select.input { width:auto; }
 @media (max-width:760px) {
   .topbar { padding:0 12px; gap:8px; height:58px; }
   .back-bar { top:58px; padding:10px 16px; }
-  .brand-name { font-size:15px; }
-  .brand-mark { width:28px; height:28px; line-height:28px; font-size:16px; }
+  .brand-logo { height:32px; }
   .brand-sub, .topbar-user .who { display:none; }
   .topnav { gap:0; min-width:0; }
   .nav-link { padding:0 8px; white-space:nowrap; font-size:13px; }

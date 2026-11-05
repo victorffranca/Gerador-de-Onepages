@@ -13,8 +13,10 @@ mkdirSync(out, { recursive: true });
 const toClassic = src => src
   .replace(/^import\s.*?;\s*$/gm, '')
   .replace(/^export\s+(?=(async\s+)?function|const|let|class)/gm, '');
+// Imagens usadas pelo app viram data URI (o Apps Script não serve arquivos estáticos).
+const LOGO = 'data:image/png;base64,' + readFileSync(join(here, 'public/img/logov4.png')).toString('base64');
 const js = ['js/config.js', 'js/db.js', 'js/report.js', 'js/people.js', 'js/app.js']
-  .map(f => `// ── ${f} ──\n` + toClassic(pub(f))).join('\n');
+  .map(f => `// ── ${f} ──\n` + toClassic(pub(f)).split('img/logov4.png').join(LOGO)).join('\n');
 
 // O Apps Script altera o JavaScript inline ao servir a página (quebrava a sintaxe), então o
 // código vai em base64 (só caracteres ASCII seguros) e é decodificado e executado no navegador.
